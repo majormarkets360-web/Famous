@@ -7,16 +7,17 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
-from PIL import Image
-import requests
-import json
 from gtts import gTTS
 from moviepy.editor import VideoFileClip, ImageClip, TextClip, CompositeVideoClip, AudioFileClip
-import asyncio
-import threading
-import schedule
+import requests
+import json
+import pickle
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 
-# Set page config
+# ==================== PAGE CONFIGURATION ====================
 st.set_page_config(
     page_title="AI Stock Video Creator",
     page_icon="📈",
@@ -24,7 +25,17 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# ==================== INITIALIZE SESSION STATE ====================
+if 'youtube_connected' not in st.session_state:
+    st.session_state.youtube_connected = False
+if 'youtube_credentials' not in st.session_state:
+    st.session_state.youtube_credentials = None
+if 'video_path' not in st.session_state:
+    st.session_state.video_path = None
+if 'generated_videos' not in st.session_state:
+    st.session_state.generated_videos = []
+
+# ==================== CUSTOM CSS ====================
 st.markdown("""
 <style>
     .stButton > button {
@@ -48,78 +59,140 @@ st.markdown("""
         font-weight: bold;
         color: #00ff88;
     }
+    .youtube-connected {
+        background-color: #00ff8822;
+        border: 1px solid #00ff88;
+        border-radius: 10px;
+        padding: 10px;
+        text-align: center;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Title
+# ==================== TITLE ====================
 st.title("📈 AI-Powered Stock Video Creator")
-st.caption("Automatic video generation for stocks with AI predictions | Posts to YouTube, TikTok, Instagram, X & more")
+st.caption("Generate stock videos with AI voiceover | Auto-post to YouTube")
 
-# Initialize session state
-if 'generated_videos' not in st.session_state:
-    st.session_state.generated_videos = []
-if 'posting_status' not in st.session_state:
-    st.session_state.posting_status = {}
-
-# Stock list
-STOCKS = ["AAPL", "TSLA", "NVDA", "GOOGL", "AMZN", "MSFT", "META", "AMD"]
-
-# Sidebar - API Keys
+# ==================== SIDEBAR - YOUTUBE AUTHENTICATION ====================
 with st.sidebar:
-    st.header("🔑 API Configuration")
+    st.header("🔑 YouTube Authentication")
     
-    st.subheader("Ayrshare API (Recommended)")
-    ayrshare_key = st.text_input(
-        "Ayrshare API Key",
-        type="password",
-        placeholder="Get from app.ayrshare.com",
-        help="Posts to 10+ platforms with one API call"
+    # Option 1: File upload method (Easiest)
+    st.subheader("Method 1: Upload OAuth File")
+    uploaded_file = st.file_uploader(
+        "Upload client_secrets.json",
+        type=['json'],
+        help="Download from Google Cloud Console (Desktop app type)"
     )
     
-    st.divider()
-    st.subheader("YouTube (OAuth 2.0)")
-    uploaded_file = st.file_uploader("Upload client_secrets.json", type=['json'])
     if uploaded_file:
+        # Save uploaded file to temporary location
         secrets_path = tempfile.mktemp(suffix=".json")
         with open(secrets_path, 'wb') as f:
             f.write(uploaded_file.getvalue())
-        st.session_state.youtube_secrets = secrets_path
-        st.success("✅ YouTube credentials uploaded!")
+        
+        st.success("✅ Credentials file loaded!")
+        
+        # Connect YouTube button
+        if st.button("🔌 Connect to YouTube", key="connect_youtube_btn"):
+            with st.spinner("Connecting to YouTube..."):
+                try:
+                    # OAuth flow
+                    flow = InstalledAppFlow.from_client_secrets_file(
+                        secrets_path,
+                        scopes=['https://www.googleapis.com/auth/youtube.upload']
+                    )
+                    
+                    # This opens a browser window for authentication
+                    credentials = flow.run_local_server(port=8080)
+                    
+                    # Save credentials to session
+                    st.session_state.youtube_credentials = credentials
+                    st.session_state.youtube_connected = True
+                    
+                    # Also save to file for future runs
+                    with open('youtube_token.pickle', 'wb') as token_file:
+                        pickle.dump(credentials, token_file)
+                    
+                    st.success("✅ YouTube connected successfully!")
+                    
+                    # Clean up temp file
+                    os.remove(secrets_path)
+                    
+                except Exception as e:
+                    st.error(f"Connection failed: {str(e)}")
+                    st.info("Make sure you've downloaded the correct client_secrets.json file")
     
-    st.divider()
-    st.subheader("TikTok (Cookie Method)")
-    tiktok_session = st.text_input("TikTok Session ID", type="password")
+    # Option 2: Use saved token (if available)
+    st.subheader("Method 2: Use Saved Token")
+    if os.path.exists('youtube_token.pickle'):
+        if st.button("🔌 Connect with Saved Token"):
+            try:
+                with open('youtube_token.pickle', 'rb') as token_file:
+                    credentials = pickle.load(token_file)
+                
+                # Check if token is expired
+                if credentials and credentials.expired and credentials.refresh_token:
+                    credentials.refresh(Request())
+                    with open('youtube_token.pickle', 'wb') as token_file:
+                        pickle.dump(credentials, token_file)
+                
+                st.session_state.youtube_credentials = credentials
+                st.session_state.youtube_connected = True
+                st.success("✅ Connected with saved token!")
+                
+            except Exception as e:
+                st.error(f"Failed to load token: {str(e)}")
+    else:
+        st.info("No saved token found. Use Method 1 first.")
     
+    # Display connection status
     st.divider()
-    st.subheader("Other Platforms")
-    st.info("Ayrshare handles: X/Twitter, Instagram, LinkedIn, Facebook, Reddit, Pinterest, Telegram")
+    if st.session_state.youtube_connected:
+        st.markdown("""
+        <div class="youtube-connected">
+        ✅ <strong>YouTube Connected!</strong><br>
+        Ready to upload videos
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div class="youtube-connected" style="background-color: #ff000022; border-color: #ff4444;">
+        ❌ <strong>YouTube Not Connected</strong><br>
+        Upload client_secrets.json to connect
+        </div>
+        """, unsafe_allow_html=True)
     
+    # Stock selection
     st.divider()
-    st.markdown("### 📊 Stock Selection")
-    selected_stocks = st.multiselect("Select stocks to monitor", STOCKS, default=STOCKS[:4])
+    st.header("📊 Stock Selection")
+    STOCKS = ["AAPL", "TSLA", "NVDA", "GOOGL", "AMZN", "MSFT", "META", "AMD"]
+    selected_stocks = st.multiselect("Select stocks", STOCKS, default=STOCKS[:4])
 
-# Main content area
+# ==================== MAIN CONTENT AREA ====================
 col1, col2 = st.columns([2, 1])
 
 with col1:
-    st.header("🎬 Video Generation")
+    st.header("🎬 Generate Stock Video")
     
     # Manual generation
-    manual_symbol = st.selectbox("Generate video for specific stock", ["Select a stock"] + STOCKS)
+    manual_symbol = st.selectbox("Select stock to generate video", ["Select a stock"] + STOCKS)
     
     col_orient1, col_orient2 = st.columns(2)
     with col_orient1:
-        orientation = st.radio("Video Orientation", ["Horizontal (YouTube)", "Vertical (TikTok/Reels)"], index=0)
+        orientation = st.radio("Video Orientation", ["Horizontal (YouTube)", "Vertical (Shorts)"], index=0)
     
-    if st.button("🚀 Generate Video Now", type="primary", use_container_width=True):
+    # Generate video button
+    if st.button("🚀 Generate Video", type="primary", use_container_width=True):
         if manual_symbol != "Select a stock":
             with st.spinner(f"Generating video for {manual_symbol}..."):
                 try:
-                    video_path = generate_video(
+                    video_path = generate_stock_video(
                         manual_symbol, 
                         "vertical" if "Vertical" in orientation else "horizontal"
                     )
                     if video_path:
+                        st.session_state.video_path = video_path
                         st.session_state.generated_videos.append(video_path)
                         st.success(f"✅ Video generated for {manual_symbol}!")
                         st.video(video_path)
@@ -137,30 +210,55 @@ with col1:
         else:
             st.warning("Please select a stock")
     
-    # Auto-posting section
-    st.header("📱 Auto-Post to Platforms")
-    
-    col_x, col_yt, col_tt = st.columns(3)
-    with col_x:
-        post_x = st.checkbox("X (Twitter)", value=True)
-    with col_yt:
-        post_youtube = st.checkbox("YouTube", value=True)
-    with col_tt:
-        post_tiktok = st.checkbox("TikTok", value=True)
-    
-    if st.button("🤖 Start Auto-Generation & Posting", type="secondary"):
-        if ayrshare_key:
-            st.info("Starting auto-generation job (runs every 5 minutes)")
-            # Start background thread
-            start_auto_generation(selected_stocks, ayrshare_key, tiktok_session)
-        else:
-            st.error("Please enter Ayrshare API key for auto-posting")
+    # Upload to YouTube section
+    if st.session_state.video_path:
+        st.divider()
+        st.header("📤 Upload to YouTube")
+        
+        # Video metadata
+        title = st.text_input("Video Title", f"Stock Market Update - {datetime.now().strftime('%Y-%m-%d')}")
+        description = st.text_area("Description", "AI-generated stock market analysis. Not financial advice. #Stocks #Trading #AI")
+        tags = st.text_input("Tags (comma separated)", "stocks, trading, AI, finance, market analysis")
+        
+        col_upload1, col_upload2 = st.columns(2)
+        with col_upload1:
+            if st.button("📺 Upload to YouTube", use_container_width=True):
+                if st.session_state.youtube_connected:
+                    with st.spinner("Uploading to YouTube..."):
+                        success = upload_to_youtube(
+                            st.session_state.video_path,
+                            title,
+                            description,
+                            [tag.strip() for tag in tags.split(',')]
+                        )
+                        if success:
+                            st.balloons()
+                            st.success("🎉 Video uploaded to YouTube successfully!")
+                else:
+                    st.error("Please connect YouTube account first (see sidebar)")
+        
+        with col_upload2:
+            if st.button("📱 Post to YouTube Shorts", use_container_width=True):
+                if st.session_state.youtube_connected:
+                    with st.spinner("Uploading to YouTube Shorts..."):
+                        shorts_title = f"{title} #Shorts"
+                        success = upload_to_youtube(
+                            st.session_state.video_path,
+                            shorts_title,
+                            description,
+                            [tag.strip() for tag in tags.split(',')] + ["shorts"],
+                            is_shorts=True
+                        )
+                        if success:
+                            st.success("🎉 Video uploaded as YouTube Shorts!")
+                else:
+                    st.error("Please connect YouTube account first")
 
 with col2:
-    st.header("📊 Stock Dashboard")
+    st.header("📊 Live Stock Dashboard")
     
-    # Display stock data
-    for symbol in selected_stocks[:4]:
+    # Display real-time stock data
+    for symbol in selected_stocks:
         try:
             stock = yf.Ticker(symbol)
             info = stock.info
@@ -174,12 +272,18 @@ with col2:
                 <div style="color: {'#00ff88' if change >= 0 else '#ff4444'}">
                     {change:+.2f}%
                 </div>
+                <small>Last updated: {datetime.now().strftime('%H:%M:%S')}</small>
             </div>
             """, unsafe_allow_html=True)
-        except:
-            pass
+        except Exception as e:
+            st.error(f"Error loading {symbol}: {str(e)}")
+    
+    # Refresh button
+    if st.button("🔄 Refresh Data"):
+        st.rerun()
 
-# Video generation function
+# ==================== FUNCTIONS ====================
+
 def get_stock_data(symbol):
     """Fetch current stock data"""
     try:
@@ -204,7 +308,7 @@ def get_stock_data(symbol):
         return None
 
 def get_prediction(info):
-    """Simple AI prediction based on price action"""
+    """Simple prediction based on price action"""
     change = info['change']
     
     if change > 1.5:
@@ -229,8 +333,8 @@ def get_prediction(info):
         'confidence': min(abs(change) * 20, 95)
     }
 
-def generate_video(symbol, orientation="horizontal"):
-    """Generate stock video with AI voiceover"""
+def generate_stock_video(symbol, orientation="horizontal"):
+    """Generate stock video with chart and AI voiceover"""
     
     # Get data
     info = get_stock_data(symbol)
@@ -239,7 +343,7 @@ def generate_video(symbol, orientation="horizontal"):
     
     pred = get_prediction(info)
     
-    # Set dimensions
+    # Set dimensions based on orientation
     if orientation == "vertical":
         size = (1080, 1920)
         title = f"🚨 {symbol} AI ALERT"
@@ -249,13 +353,14 @@ def generate_video(symbol, orientation="horizontal"):
         title = f"{symbol} Live • AI Prediction"
         font_size = 120
     
-    # Create chart
+    # Create stock chart
     data = yf.download(symbol, period="1d", interval="5m")
     if data.empty:
-        # Fallback to mock data
+        # Create mock data if real data unavailable
         dates = pd.date_range(start=datetime.now() - timedelta(hours=6), periods=72, freq='5min')
         data = pd.DataFrame({'Close': np.random.normal(info['price'], info['price']*0.01, 72)}, index=dates)
     
+    # Plot chart
     plt.style.use('dark_background')
     fig, ax = plt.subplots(figsize=(size[0]/100, size[1]/100), dpi=100)
     
@@ -313,130 +418,75 @@ def generate_video(symbol, orientation="horizontal"):
             logger=None
         )
         
-        # Cleanup
-        os.remove(chart_path)
-        os.remove(audio_path)
+        # Cleanup temp files
+        try:
+            os.remove(chart_path)
+            os.remove(audio_path)
+        except:
+            pass
         
         return video_path
         
     except Exception as e:
-        st.error(f"Video creation error: {e}")
+        st.error(f"Video creation error: {str(e)}")
         return None
 
-def post_with_ayrshare(video_path, caption, title, ayrshare_key):
-    """Post to multiple platforms using Ayrshare"""
+def upload_to_youtube(video_path, title, description, tags, is_shorts=False):
+    """Upload video to YouTube"""
+    if not st.session_state.youtube_connected:
+        st.error("YouTube not connected")
+        return False
+    
     try:
-        headers = {
-            "Authorization": f"Bearer {ayrshare_key}",
-            "Content-Type": "application/json"
+        credentials = st.session_state.youtube_credentials
+        
+        # Build YouTube service
+        youtube = build('youtube', 'v3', credentials=credentials)
+        
+        # Video metadata
+        body = {
+            'snippet': {
+                'title': title,
+                'description': description,
+                'tags': tags,
+                'categoryId': '22'  # People & Blogs
+            },
+            'status': {
+                'privacyStatus': 'public',
+                'selfDeclaredMadeForKids': False
+            }
         }
         
-        payload = {
-            "post": caption,
-            "platforms": ["youtube", "tiktok", "instagram", "twitter", "facebook", "linkedin"],
-            "mediaUrls": [video_path],
-            "title": title,
-            "youtubeTitle": title,
-            "isShorts": True
-        }
+        # For Shorts, add #Shorts to title if not already there
+        if is_shorts and "#Shorts" not in title:
+            body['snippet']['title'] = f"{title} #Shorts"
         
-        response = requests.post(
-            "https://api.ayrshare.com/api/post",
-            headers=headers,
-            json=payload,
-            timeout=30
+        # Upload video
+        media = MediaFileUpload(
+            video_path,
+            chunksize=-1,
+            resumable=True
         )
         
-        if response.status_code == 200:
-            return response.json()
-        else:
-            return None
-            
+        request = youtube.videos().insert(
+            part=','.join(body.keys()),
+            body=body,
+            media_body=media
+        )
+        
+        response = request.execute()
+        video_id = response['id']
+        
+        st.success(f"✅ Uploaded to YouTube! Video ID: {video_id}")
+        st.markdown(f"[Watch on YouTube](https://youtu.be/{video_id})")
+        
+        return True
+        
     except Exception as e:
-        st.error(f"Ayrshare error: {e}")
-        return None
+        st.error(f"YouTube upload failed: {str(e)}")
+        return False
 
-def start_auto_generation(stocks, ayrshare_key, tiktok_session):
-    """Start automatic generation in background"""
-    
-    def generate_and_post():
-        for symbol in stocks:
-            try:
-                # Generate videos
-                horiz_video = generate_video(symbol, "horizontal")
-                vert_video = generate_video(symbol, "vertical")
-                
-                if horiz_video and vert_video:
-                    # Prepare content
-                    info = get_stock_data(symbol)
-                    pred = get_prediction(info)
-                    
-                    caption = f"""{symbol} LIVE • ${info['price']:.2f} ({info['change']:+.2f}%)
-AI Prediction: {pred['signal']} — {pred['reason']}
-Confidence: {pred['confidence']:.0f}%
-
-Not financial advice • DYOR
-#Stocks #{symbol} #AI #Trading"""
-                    
-                    title = f"{symbol} AI Stock Alert - {pred['signal']}"
-                    
-                    # Post using Ayrshare
-                    if ayrshare_key:
-                        result = post_with_ayrshare(horiz_video, caption, title, ayrshare_key)
-                        if result:
-                            st.session_state.posting_status[symbol] = "Posted to all platforms"
-                        else:
-                            st.session_state.posting_status[symbol] = "Ayrshare failed"
-                    
-                    # Cleanup
-                    os.remove(horiz_video)
-                    os.remove(vert_video)
-                    
-            except Exception as e:
-                st.session_state.posting_status[symbol] = f"Error: {e}"
-    
-    # Run once
-    generate_and_post()
-    
-    # Schedule for every 5 minutes
-    schedule.every(5).minutes.do(generate_and_post)
-    
-    # Keep running
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
-
-# Manual posting section
-with st.expander("📤 Manual Post to Platforms"):
-    if st.session_state.generated_videos:
-        latest_video = st.session_state.generated_videos[-1]
-        st.video(latest_video)
-        
-        custom_caption = st.text_area("Customize caption", 
-            "AI Stock Prediction - Not financial advice #Stocks #AI")
-        
-        if st.button("Post Now to All Platforms"):
-            if ayrshare_key:
-                result = post_with_ayrshare(
-                    latest_video, 
-                    custom_caption, 
-                    "AI Stock Alert",
-                    ayrshare_key
-                )
-                if result:
-                    st.success("✅ Posted to all platforms!")
-                else:
-                    st.error("Posting failed")
-            else:
-                st.error("Please enter Ayrshare API key")
-
-# Footer
+# ==================== FOOTER ====================
 st.divider()
-st.caption("🤖 AI-Powered Stock Video Creator | Generates videos with real-time data and AI predictions")
-st.caption("💡 Install: pip install streamlit yfinance matplotlib pandas gtts moviepy requests schedule")
-
-# Requirements info
-with st.expander("📦 Required Packages"):
-    st.code("""
-pip install streamlit yfinance matplotlib pandas gtts moviepy requests schedule pillow
-    """)
+st.caption("🤖 AI-Powered Stock Video Creator | Real-time data | AI predictions | YouTube Auto-upload")
+st.caption("⚠️ Not financial advice. Always do your own research before investing.")
