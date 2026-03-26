@@ -1,7 +1,17 @@
+import streamlit as st
 import os
-from dotenv import load_dotenv
-from social_post_api import SocialPostAPI  # Ayrshare SDK
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
-from google_auth_oauthlib.flow import InstalledAppFlow
-import tiktok_uploader  # fallback
+import time
+import tempfile
+import yfinance as yf
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+from PIL import Image
+import requests
+import json
+from gtts import gTTS
+from moviepy.editor import VideoFileClip, ImageClip, TextClip, CompositeVideoClip, AudioFileClip
+import asyncio
+import threading
+import schedule
