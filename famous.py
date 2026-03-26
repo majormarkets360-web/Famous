@@ -1,11 +1,3 @@
-import os
-from dotenv import load_dotenv
-from social_post_api import SocialPostAPI  # Ayrshare SDK
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
-from google_auth_oauthlib.flow import InstalledAppFlow
-import tiktok_uploader  # fallback
-
 load_dotenv()
 
 AYSHARE = SocialPostAPI(os.getenv("AYSHARE_API_KEY"))
