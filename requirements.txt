@@ -1,8 +1,56 @@
-streamlit>=1.28.0
-yfinance>=0.2.28
+# Core Data Processing
 pandas>=2.0.0
 numpy>=1.24.0
+python-dateutil>=2.8.2
+pytz>=2023.3
+
+# Stock Market Data
+yfinance>=0.2.28
+
+# Visualization
 plotly>=5.18.0
+matplotlib>=3.7.0
+
+# AI & Machine Learning
+scikit-learn>=1.3.0
+scipy>=1.10.0
 textblob>=0.17.1
+
+# Web Framework
+streamlit>=1.28.0
+
+# HTTP Requests & APIs
 requests>=2.31.0
+
+# For sentiment analysis
+nltk>=3.8.1
+
+# Optional but recommended
 python-dotenv>=1.0.0
+
+# For technical indicators
+ta>=0.10.2
+
+# For advanced analytics
+statsmodels>=0.14.0
+
+# For async operations (if needed)
+aiohttp>=3.9.0
+
+# For image processing (if needed)
+Pillow>=10.0.0
+
+# For Google API (if using YouTube)
+google-auth>=2.23.0
+google-auth-oauthlib>=1.0.0
+google-auth-httplib2>=0.1.0
+google-api-python-client>=2.0.0
+
+# For Twitter API
+tweepy>=4.14.0
+
+# For schedule and cron jobs
+schedule>=1.2.0
+
+# For data validation
+pydantic>=2.0.0
