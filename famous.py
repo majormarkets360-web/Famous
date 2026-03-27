@@ -14,7 +14,6 @@ import pickle
 import os
 from dataclasses import dataclass
 from typing import Dict, List, Optional
-import tempfile
 import matplotlib.pyplot as plt
 
 warnings.filterwarnings('ignore')
@@ -51,83 +50,77 @@ EXCHANGES = {
         "indices": "^NYA",
         "color": "#00ff88",
         "timezone": "America/New_York",
-        "currency": "USD"
+        "currency": "USD",
+        "city": "New York"
     },
     "📊 NASDAQ": {
         "tickers": ["MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA"],
         "indices": "^IXIC",
         "color": "#88ff00",
         "timezone": "America/New_York",
-        "currency": "USD"
+        "currency": "USD",
+        "city": "New York"
     },
     "🇨🇳 Shanghai": {
         "tickers": ["BABA", "JD", "PDD", "BIDU", "NIO"],
         "indices": "000001.SS",
         "color": "#ff3366",
         "timezone": "Asia/Shanghai",
-        "currency": "CNY"
+        "currency": "CNY",
+        "city": "Shanghai"
     },
     "🇯🇵 Japan": {
         "tickers": ["TM", "SONY", "MUFG", "TKDK", "HMC"],
         "indices": "^N225",
         "color": "#ffaa00",
         "timezone": "Asia/Tokyo",
-        "currency": "JPY"
+        "currency": "JPY",
+        "city": "Tokyo"
     },
     "🇪🇺 Euronext": {
         "tickers": ["ASML", "AIR", "SAN", "TOTAL", "PHIA"],
         "indices": "^FCHI",
         "color": "#00aaff",
         "timezone": "Europe/Paris",
-        "currency": "EUR"
+        "currency": "EUR",
+        "city": "Paris"
     },
     "🇭🇰 Hong Kong": {
         "tickers": ["0700.HK", "9988.HK", "0941.HK", "0005.HK"],
         "indices": "^HSI",
         "color": "#ff88aa",
         "timezone": "Asia/Hong_Kong",
-        "currency": "HKD"
+        "currency": "HKD",
+        "city": "Hong Kong"
     },
     "🇮🇳 India NSE": {
         "tickers": ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS"],
         "indices": "^NSEI",
         "color": "#ffaa44",
         "timezone": "Asia/Kolkata",
-        "currency": "INR"
+        "currency": "INR",
+        "city": "Mumbai"
     },
     "🇬🇧 London": {
         "tickers": ["HSBA.L", "AZN.L", "SHEL.L", "ULVR.L"],
         "indices": "^FTSE",
         "color": "#44ffaa",
         "timezone": "Europe/London",
-        "currency": "GBP"
+        "currency": "GBP",
+        "city": "London"
     }
-}
-
-# ==================== CURRENCY EXCHANGE RATES ====================
-CURRENCIES = {
-    "USD": 1.0,
-    "EUR": 0.92,
-    "GBP": 0.79,
-    "JPY": 151.50,
-    "CNY": 7.25,
-    "HKD": 7.82,
-    "INR": 83.50,
-    "CAD": 1.36,
-    "AUD": 1.52,
-    "CHF": 0.90
 }
 
 # ==================== SECTOR CONFIGURATION ====================
 SECTORS = {
-    "Technology": {"tickers": ["AAPL", "MSFT", "NVDA", "GOOGL"], "etf": "XLK", "color": "#00ff88"},
-    "Financials": {"tickers": ["JPM", "BAC", "WFC", "GS"], "etf": "XLF", "color": "#88ff00"},
-    "Healthcare": {"tickers": ["JNJ", "UNH", "PFE", "MRK"], "etf": "XLV", "color": "#00aaff"},
-    "Consumer": {"tickers": ["AMZN", "TSLA", "HD", "MCD"], "etf": "XLY", "color": "#ffaa44"},
-    "Industrials": {"tickers": ["BA", "CAT", "GE", "HON"], "etf": "XLI", "color": "#44ffaa"},
-    "Communications": {"tickers": ["META", "NFLX", "DIS", "VZ"], "etf": "XLC", "color": "#ff88aa"},
-    "Energy": {"tickers": ["XOM", "CVX", "COP", "SLB"], "etf": "XLE", "color": "#ff6644"},
-    "Real Estate": {"tickers": ["PLD", "AMT", "CCI", "SPG"], "etf": "XLRE", "color": "#ffaa88"}
+    "Technology": {"tickers": ["AAPL", "MSFT", "NVDA", "GOOGL"], "etf": "XLK", "color": "#00ff88", "icon": "💻"},
+    "Financials": {"tickers": ["JPM", "BAC", "WFC", "GS"], "etf": "XLF", "color": "#88ff00", "icon": "🏦"},
+    "Healthcare": {"tickers": ["JNJ", "UNH", "PFE", "MRK"], "etf": "XLV", "color": "#00aaff", "icon": "🏥"},
+    "Consumer": {"tickers": ["AMZN", "TSLA", "HD", "MCD"], "etf": "XLY", "color": "#ffaa44", "icon": "🛍️"},
+    "Industrials": {"tickers": ["BA", "CAT", "GE", "HON"], "etf": "XLI", "color": "#44ffaa", "icon": "🏭"},
+    "Communications": {"tickers": ["META", "NFLX", "DIS", "VZ"], "etf": "XLC", "color": "#ff88aa", "icon": "📡"},
+    "Energy": {"tickers": ["XOM", "CVX", "COP", "SLB"], "etf": "XLE", "color": "#ff6644", "icon": "⚡"},
+    "Real Estate": {"tickers": ["PLD", "AMT", "CCI", "SPG"], "etf": "XLRE", "color": "#ffaa88", "icon": "🏢"}
 }
 
 # ==================== DATA CLASSES ====================
@@ -170,21 +163,12 @@ class AIPrediction:
     target: float
     stop_loss: float
 
-@dataclass
-class InvestmentPlan:
-    symbol: str
-    amount: float
-    shares: int
-    current_price: float
-    target_price: float
-    potential_return: float
-    recommendation: str
-
 # ==================== PAGE CONFIG ====================
 st.set_page_config(
-    page_title="AI Trading Dashboard",
+    page_title="INVESTIFY - AI Trading Dashboard",
     page_icon="📈",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 # ==================== INITIALIZE SESSION STATE ====================
@@ -206,15 +190,318 @@ if 'auto_stream' not in st.session_state:
     st.session_state.auto_stream = False
 if 'broadcast_active' not in st.session_state:
     st.session_state.broadcast_active = False
-if 'broadcaster' not in st.session_state and AUTO_BROADCASTER_AVAILABLE:
-    st.session_state.broadcaster = AutoBroadcaster(SocialMediaStreamer() if SOCIAL_STREAMER_AVAILABLE else None)
+
+# ==================== CUSTOM CSS - INVESTIFY STYLE ====================
+st.markdown("""
+<style>
+    /* Import Google Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    
+    * {
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* Main container styling */
+    .main-header {
+        background: linear-gradient(135deg, #0a0a2a 0%, #1a1a3a 100%);
+        padding: 2rem 3rem;
+        border-radius: 20px;
+        margin-bottom: 2rem;
+        border-bottom: 3px solid #00ff88;
+    }
+    
+    .logo {
+        font-size: 28px;
+        font-weight: 800;
+        background: linear-gradient(135deg, #00ff88, #00cc66);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        display: inline-block;
+    }
+    
+    .nav-links {
+        display: flex;
+        gap: 2rem;
+        margin-top: 1rem;
+    }
+    
+    .nav-link {
+        color: #888;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.3s;
+        cursor: pointer;
+    }
+    
+    .nav-link:hover {
+        color: #00ff88;
+    }
+    
+    /* Hero Section */
+    .hero-section {
+        background: linear-gradient(135deg, #00ff8822, #00cc6622);
+        border-radius: 20px;
+        padding: 3rem;
+        margin-bottom: 2rem;
+        text-align: center;
+        border: 1px solid #00ff88;
+    }
+    
+    .hero-title {
+        font-size: 48px;
+        font-weight: 800;
+        background: linear-gradient(135deg, #ffffff, #00ff88);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 1rem;
+    }
+    
+    .hero-subtitle {
+        color: #aaa;
+        font-size: 18px;
+        margin-bottom: 2rem;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #00ff88, #00cc66);
+        color: #000;
+        padding: 12px 30px;
+        border-radius: 30px;
+        font-weight: 600;
+        text-decoration: none;
+        display: inline-block;
+        transition: transform 0.3s;
+        border: none;
+        cursor: pointer;
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-2px);
+    }
+    
+    /* Global Timezone Bar */
+    .timezone-bar {
+        background: #0a0a1a;
+        padding: 12px 20px;
+        border-radius: 15px;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-around;
+        flex-wrap: wrap;
+        gap: 15px;
+        border: 1px solid #2a2a4a;
+    }
+    
+    .timezone-card {
+        text-align: center;
+        padding: 8px 15px;
+        background: #1a1a2a;
+        border-radius: 12px;
+        transition: all 0.3s;
+    }
+    
+    .timezone-card:hover {
+        transform: translateY(-2px);
+        background: #2a2a3a;
+    }
+    
+    .timezone-city {
+        font-weight: 600;
+        color: #00ff88;
+        font-size: 14px;
+    }
+    
+    .timezone-time {
+        font-size: 18px;
+        font-weight: 700;
+        color: white;
+    }
+    
+    .timezone-status {
+        font-size: 10px;
+        color: #888;
+    }
+    
+    /* Market Cards */
+    .market-card {
+        background: linear-gradient(135deg, #1a1a2a, #0f0f1f);
+        border-radius: 16px;
+        padding: 20px;
+        transition: all 0.3s;
+        border: 1px solid #2a2a4a;
+        margin-bottom: 15px;
+    }
+    
+    .market-card:hover {
+        transform: translateY(-5px);
+        border-color: #00ff88;
+        box-shadow: 0 10px 30px rgba(0,255,136,0.1);
+    }
+    
+    .market-name {
+        font-size: 16px;
+        font-weight: 600;
+        color: #00ff88;
+        margin-bottom: 10px;
+    }
+    
+    .market-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: white;
+    }
+    
+    .market-change {
+        font-size: 14px;
+        font-weight: 500;
+    }
+    
+    .positive {
+        color: #00ff88;
+    }
+    
+    .negative {
+        color: #ff4444;
+    }
+    
+    /* Sector Cards */
+    .sector-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-top: 20px;
+    }
+    
+    .sector-item {
+        background: #1a1a2a;
+        border-radius: 12px;
+        padding: 15px;
+        text-align: center;
+        transition: all 0.3s;
+        cursor: pointer;
+    }
+    
+    .sector-item:hover {
+        transform: translateY(-3px);
+        background: #2a2a3a;
+    }
+    
+    .sector-icon {
+        font-size: 28px;
+        margin-bottom: 8px;
+    }
+    
+    .sector-name {
+        font-weight: 600;
+        margin-bottom: 5px;
+    }
+    
+    .sector-perf {
+        font-size: 18px;
+        font-weight: 700;
+    }
+    
+    /* Alert Cards */
+    .alert-card {
+        background: linear-gradient(135deg, #1a1a2a, #0f0f1f);
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 10px;
+        border-left: 4px solid;
+        transition: all 0.3s;
+    }
+    
+    .alert-buy {
+        border-left-color: #00ff88;
+    }
+    
+    .alert-sell {
+        border-left-color: #ff4444;
+    }
+    
+    /* Stats Cards */
+    .stat-card {
+        background: linear-gradient(135deg, #1a1a2a, #0f0f1f);
+        border-radius: 16px;
+        padding: 20px;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 32px;
+        font-weight: 700;
+        color: #00ff88;
+    }
+    
+    .stat-label {
+        color: #888;
+        font-size: 14px;
+        margin-top: 5px;
+    }
+    
+    /* Live Ticker */
+    .ticker-bar {
+        background: #0a0a1a;
+        padding: 10px;
+        border-radius: 12px;
+        overflow: hidden;
+        white-space: nowrap;
+        margin: 15px 0;
+        border: 1px solid #2a2a4a;
+    }
+    
+    .ticker-content {
+        display: inline-block;
+        animation: ticker 40s linear infinite;
+        white-space: nowrap;
+    }
+    
+    @keyframes ticker {
+        0% { transform: translateX(100%); }
+        100% { transform: translateX(-100%); }
+    }
+    
+    /* Sidebar Styling */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #0a0a2a 0%, #050510 100%);
+        border-right: 1px solid #2a2a4a;
+    }
+    
+    /* Button Styling */
+    .stButton > button {
+        background: linear-gradient(135deg, #00ff88, #00cc66);
+        color: #000;
+        font-weight: 600;
+        border-radius: 30px;
+        border: none;
+        padding: 8px 20px;
+        transition: all 0.3s;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,255,136,0.3);
+    }
+    
+    /* Metric Cards */
+    [data-testid="stMetricValue"] {
+        color: #00ff88;
+        font-size: 28px;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # ==================== HELPER FUNCTIONS ====================
 
-def add_message(msg, type='info'):
-    timestamp = datetime.now().strftime("%H:%M:%S")
-    st.session_state.stream_messages.insert(0, {'time': timestamp, 'message': msg, 'type': type})
-    st.session_state.stream_messages = st.session_state.stream_messages[:100]
+def get_exchange_time(timezone_str):
+    """Get current time for a timezone"""
+    try:
+        from datetime import datetime
+        import pytz
+        tz = pytz.timezone(timezone_str)
+        return datetime.now(tz).strftime("%H:%M")
+    except:
+        return "--:--"
 
 def fetch_exchange_data():
     exchange_data = {}
@@ -245,7 +532,7 @@ def fetch_exchange_data():
                     top_gainers=stocks[:3], top_losers=stocks[-3:], timestamp=datetime.now()
                 )
         except Exception as e:
-            add_message(f"Error fetching {name}: {str(e)}", 'error')
+            pass
     return exchange_data
 
 def fetch_sector_data():
@@ -265,25 +552,6 @@ def fetch_sector_data():
             pass
     return sector_data
 
-def fetch_currency_rates():
-    """Fetch real-time currency exchange rates"""
-    try:
-        # Get USD base rates
-        rates = {"USD": 1.0}
-        for currency in ["EUR", "GBP", "JPY", "CNY", "HKD", "INR", "CAD", "AUD", "CHF"]:
-            try:
-                pair = yf.Ticker(f"{currency}USD=X")
-                hist = pair.history(period="1d")
-                if not hist.empty:
-                    rates[currency] = hist['Close'].iloc[-1]
-                else:
-                    rates[currency] = CURRENCIES.get(currency, 1.0)
-            except:
-                rates[currency] = CURRENCIES.get(currency, 1.0)
-        return rates
-    except:
-        return CURRENCIES
-
 def calculate_ai_prediction(symbol):
     try:
         stock = yf.Ticker(symbol)
@@ -297,7 +565,6 @@ def calculate_ai_prediction(symbol):
         ma20 = hist['Close'].rolling(20).mean().iloc[-1]
         ma50 = hist['Close'].rolling(50).mean().iloc[-1] if len(hist) > 50 else price
         
-        # Simple prediction logic
         if price > ma20 and price > ma50:
             predicted = price * 1.05
             signal = "BUY"
@@ -320,20 +587,8 @@ def calculate_ai_prediction(symbol):
     except:
         return None
 
-def calculate_investment_plan(symbol, amount, prediction):
-    if not prediction:
-        return None
-    shares = int(amount / prediction.current_price) if prediction.current_price > 0 else 0
-    return InvestmentPlan(
-        symbol=symbol, amount=amount, shares=shares,
-        current_price=prediction.current_price, target_price=prediction.target,
-        potential_return=((prediction.target - prediction.current_price) / prediction.current_price * 100),
-        recommendation=f"{prediction.signal} with {prediction.confidence}% confidence"
-    )
-
 def update_all_data():
-    """Update all market data"""
-    with st.spinner("Fetching global market data..."):
+    with st.spinner("Updating market data..."):
         st.session_state.exchange_data = fetch_exchange_data()
         st.session_state.sector_data = fetch_sector_data()
         for symbol in st.session_state.watchlist:
@@ -358,93 +613,66 @@ def update_all_data():
                     ))
         
         st.session_state.last_update = datetime.now()
-        add_message("Market data updated", 'success')
     return True
 
-# ==================== CUSTOM CSS ====================
+# ==================== HEADER with NAVIGATION ====================
 st.markdown("""
-<style>
-    @keyframes pulse {
-        0% { opacity: 1; }
-        50% { opacity: 0.5; }
-        100% { opacity: 1; }
-    }
-    
-    @keyframes slide {
-        0% { transform: translateX(100%); }
-        100% { transform: translateX(-100%); }
-    }
-    
-    .live-badge {
-        background: linear-gradient(90deg, #ff3366, #ff0066);
-        color: white;
-        padding: 5px 15px;
-        border-radius: 20px;
-        display: inline-block;
-        animation: pulse 2s infinite;
-    }
-    
-    .ticker-bar {
-        background: #000000;
-        padding: 10px;
-        border-radius: 10px;
-        overflow: hidden;
-        white-space: nowrap;
-        margin: 10px 0;
-        border: 1px solid #00ff88;
-        font-family: monospace;
-    }
-    
-    .ticker-content {
-        display: inline-block;
-        animation: slide 30s linear infinite;
-        white-space: nowrap;
-    }
-    
-    .exchange-card {
-        background: linear-gradient(135deg, #1e1e1e, #2d2d2d);
-        border-radius: 15px;
-        padding: 20px;
-        margin: 10px 0;
-        border-left: 4px solid #00ff88;
-        transition: transform 0.3s;
-    }
-    
-    .exchange-card:hover {
-        transform: translateY(-5px);
-    }
-    
-    .alert-buy {
-        background: #00ff8822;
-        border: 2px solid #00ff88;
-        padding: 10px;
-        border-radius: 10px;
-        margin: 5px 0;
-        animation: pulse 2s infinite;
-    }
-    
-    .alert-sell {
-        background: #ff444422;
-        border: 2px solid #ff4444;
-        padding: 10px;
-        border-radius: 10px;
-        margin: 5px 0;
-        animation: pulse 2s infinite;
-    }
-    
-    .positive { color: #00ff88; }
-    .negative { color: #ff4444; }
-    .neutral { color: #ffaa00; }
-    
-    .timezone-card {
-        background: #1a1a1a;
-        padding: 10px;
-        border-radius: 8px;
-        margin: 5px;
-        text-align: center;
-    }
-</style>
+<div class="main-header">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <span class="logo">INVESTIFY</span>
+        </div>
+        <div class="nav-links">
+            <span class="nav-link">Home</span>
+            <span class="nav-link">Markets</span>
+            <span class="nav-link">Portfolio</span>
+            <span class="nav-link">News</span>
+            <span class="nav-link">About</span>
+            <span class="nav-link">Contact</span>
+        </div>
+    </div>
+</div>
 """, unsafe_allow_html=True)
+
+# ==================== HERO SECTION ====================
+st.markdown("""
+<div class="hero-section">
+    <div class="hero-title">GLOBAL MARKETS AT YOUR FINGERTIPS</div>
+    <div class="hero-subtitle">AI-powered insights | Real-time data | Smart predictions</div>
+    <button class="btn-primary">Learn More →</button>
+</div>
+""", unsafe_allow_html=True)
+
+# ==================== GLOBAL TIMEZONE BAR ====================
+st.markdown("### 🌍 Global Market Hours")
+
+# Create timezone bar
+timezone_cols = st.columns(len(EXCHANGES))
+
+for idx, (name, config) in enumerate(EXCHANGES.items()):
+    with timezone_cols[idx]:
+        current_time = get_exchange_time(config['timezone'])
+        # Determine if market is likely open (simplified - between 9:30 AM and 4:00 PM local time)
+        try:
+            from datetime import datetime
+            import pytz
+            tz = pytz.timezone(config['timezone'])
+            local_time = datetime.now(tz)
+            hour = local_time.hour
+            is_open = 9 <= hour <= 16
+            status = "🟢 OPEN" if is_open else "🔴 CLOSED"
+            status_color = "#00ff88" if is_open else "#ff4444"
+        except:
+            status = "⚪ UNKNOWN"
+            status_color = "#888"
+        
+        st.markdown(f"""
+        <div class="timezone-card">
+            <div class="timezone-city">{name}</div>
+            <div class="timezone-time">{current_time}</div>
+            <div class="timezone-status" style="color: {status_color};">{status}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # ==================== TICKER BAR ====================
 def create_ticker_text():
@@ -454,28 +682,13 @@ def create_ticker_text():
         color = "#00ff88" if data.index_change >= 0 else "#ff4444"
         ticker_parts.append(f"{name}: {data.index_value:.0f} <span style='color:{color}'>{arrow} {abs(data.index_change):.1f}%</span>")
     
-    for symbol, pred in st.session_state.ai_predictions.items():
+    for symbol, pred in list(st.session_state.ai_predictions.items())[:5]:
         if pred:
             emoji = "🟢" if pred.signal == "BUY" else "🔴" if pred.signal == "SELL" else "🟡"
-            ticker_parts.append(f"{emoji} {symbol}: ${pred.current_price:.2f} ({pred.signal})")
+            ticker_parts.append(f"{emoji} {symbol}: ${pred.current_price:.2f}")
     
     return " | ".join(ticker_parts)
 
-# ==================== HEADER ====================
-st.markdown("""
-<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 2rem; border-radius: 20px; margin-bottom: 2rem; text-align: center;">
-    <h1 style="color: white;">🌍 AI Trading Intelligence Dashboard</h1>
-    <p style="color: white;">8 Global Exchanges | AI Predictions | Live Alerts | Auto-Broadcast</p>
-    <div style="display: flex; justify-content: center; gap: 10px; margin-top: 10px;">
-        <span class="live-badge">🔴 LIVE STREAMING</span>
-        <span>🤖 AI Powered</span>
-        <span>📊 94% Accuracy</span>
-        <span>🌍 Global Coverage</span>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ==================== TICKER BAR ====================
 if st.session_state.exchange_data:
     ticker_html = create_ticker_text()
     st.markdown(f"""
@@ -486,252 +699,210 @@ if st.session_state.exchange_data:
     </div>
     """, unsafe_allow_html=True)
 
-# ==================== CONTROL ROW ====================
-col_refresh, col_stream, col_broadcast = st.columns(3)
+# ==================== CONTROL BUTTONS ====================
+col1, col2, col3, col4 = st.columns(4)
 
-with col_refresh:
-    if st.button("🔄 UPDATE DATA", use_container_width=True):
+with col1:
+    if st.button("🔄 Update Data", use_container_width=True):
         update_all_data()
         st.success("Data updated!")
 
-with col_stream:
-    if st.button("▶️ START STREAM" if not st.session_state.auto_stream else "⏸️ STOP STREAM", use_container_width=True):
+with col2:
+    if st.button("▶️ Start Stream" if not st.session_state.auto_stream else "⏸️ Stop Stream", use_container_width=True):
         st.session_state.auto_stream = not st.session_state.auto_stream
-        if st.session_state.auto_stream:
-            add_message("Live stream started", 'success')
-        else:
-            add_message("Live stream stopped", 'warning')
 
-with col_broadcast:
+with col3:
     if AUTO_BROADCASTER_AVAILABLE:
-        if st.button("📢 START BROADCAST" if not st.session_state.broadcast_active else "🔴 STOP BROADCAST", use_container_width=True):
-            if not st.session_state.broadcast_active:
-                if hasattr(st.session_state, 'broadcaster'):
-                    msg = st.session_state.broadcaster.start_broadcasting()
-                    st.session_state.broadcast_active = True
-                    add_message(msg, 'success')
-            else:
-                if hasattr(st.session_state, 'broadcaster'):
-                    msg = st.session_state.broadcaster.stop_broadcasting()
-                    st.session_state.broadcast_active = False
-                    add_message(msg, 'warning')
+        if st.button("📢 Start Broadcast" if not st.session_state.broadcast_active else "🔴 Stop Broadcast", use_container_width=True):
+            st.session_state.broadcast_active = not st.session_state.broadcast_active
     else:
-        st.button("📢 BROADCAST", disabled=True, use_container_width=True)
-        st.caption("Auto-broadcaster not available")
+        st.button("📢 Broadcast", disabled=True, use_container_width=True)
 
-st.caption(f"Last updated: {st.session_state.last_update.strftime('%Y-%m-%d %H:%M:%S')}")
+with col4:
+    st.markdown(f"<div style='text-align: center; padding: 8px; background: #1a1a2a; border-radius: 30px;'><small>Updated: {st.session_state.last_update.strftime('%H:%M:%S')}</small></div>", unsafe_allow_html=True)
 
-# ==================== TABS ====================
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "🌍 Exchanges", "📈 Sectors", "🚨 Alerts", "🤖 AI Predictions", 
-    "💰 Investment", "🌐 Global Markets"
-])
+# ==================== MAIN DASHBOARD ====================
+# Stats Row
+stat_cols = st.columns(4)
+with stat_cols[0]:
+    st.markdown(f"""
+    <div class="stat-card">
+        <div class="stat-value">{len(st.session_state.exchange_data)}</div>
+        <div class="stat-label">Global Exchanges</div>
+    </div>
+    """, unsafe_allow_html=True)
+with stat_cols[1]:
+    buy_signals = sum(1 for p in st.session_state.ai_predictions.values() if p and p.signal == "BUY")
+    st.markdown(f"""
+    <div class="stat-card">
+        <div class="stat-value" style="color: #00ff88;">{buy_signals}</div>
+        <div class="stat-label">Buy Signals</div>
+    </div>
+    """, unsafe_allow_html=True)
+with stat_cols[2]:
+    sell_signals = sum(1 for p in st.session_state.ai_predictions.values() if p and p.signal == "SELL")
+    st.markdown(f"""
+    <div class="stat-card">
+        <div class="stat-value" style="color: #ff4444;">{sell_signals}</div>
+        <div class="stat-label">Sell Signals</div>
+    </div>
+    """, unsafe_allow_html=True)
+with stat_cols[3]:
+    avg_conf = np.mean([p.confidence for p in st.session_state.ai_predictions.values() if p]) if st.session_state.ai_predictions else 0
+    st.markdown(f"""
+    <div class="stat-card">
+        <div class="stat-value">{avg_conf:.0f}%</div>
+        <div class="stat-label">AI Confidence</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-# Tab 1: Exchanges
-with tab1:
-    st.markdown("## 🌍 Global Market Exchanges")
-    cols = st.columns(4)
+# Two column layout for main content
+left_col, right_col = st.columns([2, 1])
+
+with left_col:
+    st.markdown("## 📊 Market Overview")
+    
+    # Exchange cards in grid
+    market_cols = st.columns(2)
     for idx, (name, data) in enumerate(st.session_state.exchange_data.items()):
-        with cols[idx % 4]:
+        with market_cols[idx % 2]:
+            change_class = "positive" if data.index_change >= 0 else "negative"
             st.markdown(f"""
-            <div class="exchange-card">
-                <h3>{name}</h3>
-                <div style="font-size: 24px;">{data.index_value:.2f}</div>
-                <div class="{'positive' if data.index_change >= 0 else 'negative'}">{data.index_change:+.2f}%</div>
+            <div class="market-card">
+                <div class="market-name">{name}</div>
+                <div class="market-value">{data.index_value:.2f}</div>
+                <div class="market-change {change_class}">{data.index_change:+.2f}%</div>
             </div>
             """, unsafe_allow_html=True)
-            with st.expander("Top Movers"):
-                st.write("**Gainers:**")
-                for s in data.top_gainers:
-                    st.write(f"{s['symbol']}: ${s['price']:.2f} (+{s['change']:.1f}%)")
-                st.write("**Losers:**")
-                for s in data.top_losers:
-                    st.write(f"{s['symbol']}: ${s['price']:.2f} ({s['change']:.1f}%)")
-
-# Tab 2: Sectors
-with tab2:
+    
+    # Sectors Grid
     st.markdown("## 📈 Sector Performance")
-    cols = st.columns(4)
+    
+    sector_cols = st.columns(4)
     for idx, (name, data) in enumerate(st.session_state.sector_data.items()):
-        with cols[idx % 4]:
+        with sector_cols[idx % 4]:
             color = "#00ff88" if data.performance > 0 else "#ff4444"
+            icon = SECTORS[name]["icon"]
             st.markdown(f"""
-            <div style="background: #1e1e1e; padding: 15px; border-radius: 10px; margin: 5px;">
-                <h4>{name}</h4>
-                <div style="font-size: 24px; color: {color};">{data.performance:+.1f}%</div>
-                <div>{data.signal} ({data.confidence}%)</div>
+            <div class="sector-item">
+                <div class="sector-icon">{icon}</div>
+                <div class="sector-name">{name}</div>
+                <div class="sector-perf" style="color: {color};">{data.performance:+.1f}%</div>
+                <div style="font-size: 11px; color: #888;">{data.signal}</div>
             </div>
             """, unsafe_allow_html=True)
 
-# Tab 3: Alerts
-with tab3:
-    st.markdown("## 🚨 Trading Alerts")
+with right_col:
+    st.markdown("## 🚨 Hot Alerts")
+    
     if st.session_state.global_alerts:
-        for alert in st.session_state.global_alerts[-10:]:
-            cls = "alert-buy" if "BUY" in alert.alert_type else "alert-sell"
+        for alert in st.session_state.global_alerts[-5:]:
+            alert_class = "alert-buy" if "BUY" in alert.alert_type else "alert-sell"
             st.markdown(f"""
-            <div class="{cls}">
-                <strong>{alert.alert_type}</strong> {alert.symbol} ({alert.exchange})<br>
-                ${alert.price:.2f} ({alert.change:+.1f}%)<br>
-                Confidence: {alert.confidence}%
+            <div class="alert-card {alert_class}">
+                <div style="display: flex; justify-content: space-between;">
+                    <strong>{alert.alert_type}</strong>
+                    <small>{alert.timestamp.strftime('%H:%M')}</small>
+                </div>
+                <div style="font-size: 18px; font-weight: 600;">{alert.symbol}</div>
+                <div>${alert.price:.2f} ({alert.change:+.1f}%)</div>
+                <small>{alert.exchange}</small>
             </div>
             """, unsafe_allow_html=True)
     else:
         st.info("No active alerts")
-
-# Tab 4: AI Predictions
-with tab4:
-    st.markdown("## 🤖 AI Stock Predictions")
     
-    selected = st.selectbox("Select Stock", st.session_state.watchlist)
+    st.markdown("## 🤖 AI Picks")
     
-    if selected and selected in st.session_state.ai_predictions:
-        pred = st.session_state.ai_predictions[selected]
+    for symbol, pred in list(st.session_state.ai_predictions.items())[:3]:
         if pred:
             signal_color = "#00ff88" if pred.signal == "BUY" else "#ff4444" if pred.signal == "SELL" else "#ffaa00"
             st.markdown(f"""
-            <div style="background: linear-gradient(135deg, #1e1e1e, #2d2d2d); border-radius: 15px; padding: 25px; border-left: 5px solid {signal_color};">
-                <h2>{pred.symbol}</h2>
-                <div style="font-size: 36px;">${pred.current_price:.2f}</div>
-                <div style="background: {signal_color}; color: black; display: inline-block; padding: 5px 15px; border-radius: 20px; margin: 10px 0;">
-                    {pred.signal} - {pred.confidence}% Confidence
-                </div>
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 20px;">
-                    <div><strong>1 Week</strong><br>${pred.predicted_1w:.2f}</div>
-                    <div><strong>1 Month</strong><br>${pred.predicted_1m:.2f}</div>
-                    <div><strong>3 Months</strong><br>${pred.predicted_3m:.2f}</div>
-                </div>
-                <div style="margin-top: 15px;">
-                    <strong>Target:</strong> ${pred.target:.2f} | 
-                    <strong>Stop Loss:</strong> ${pred.stop_loss:.2f}
-                </div>
+            <div class="market-card">
+                <div class="market-name">{symbol}</div>
+                <div class="market-value">${pred.current_price:.2f}</div>
+                <div style="color: {signal_color};">{pred.signal} ({pred.confidence}%)</div>
+                <small>Target: ${pred.target:.2f}</small>
             </div>
             """, unsafe_allow_html=True)
-        else:
-            st.error("Could not analyze stock")
-    else:
-        st.info("Select a stock to see AI predictions")
 
-# Tab 5: Investment Calculator
-with tab5:
-    st.markdown("## 💰 Investment Calculator")
-    
-    inv_symbol = st.selectbox("Stock", st.session_state.watchlist, key="inv_select")
-    inv_amount = st.number_input("Investment Amount ($)", min_value=100, value=1000, step=100)
-    
-    if st.button("Calculate", use_container_width=True):
-        if inv_symbol in st.session_state.ai_predictions:
-            plan = calculate_investment_plan(inv_symbol, inv_amount, st.session_state.ai_predictions[inv_symbol])
-            if plan:
-                st.markdown(f"""
-                <div style="background: linear-gradient(135deg, #1e1e1e, #2d2d2d); border-radius: 15px; padding: 25px;">
-                    <h3>{plan.symbol} Investment Plan</h3>
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
-                        <div>
-                            <strong>Investment:</strong> ${plan.amount:,.2f}<br>
-                            <strong>Shares:</strong> {plan.shares}<br>
-                            <strong>Current Price:</strong> ${plan.current_price:.2f}
-                        </div>
-                        <div>
-                            <strong>Target Price:</strong> ${plan.target_price:.2f}<br>
-                            <strong>Potential Return:</strong> {plan.potential_return:+.1f}%<br>
-                            <strong>Recommendation:</strong> {plan.recommendation}
-                        </div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.error("Could not calculate plan")
-        else:
-            st.error("No prediction available for this stock")
+# ==================== ECONOMIC INDICATORS SECTION ====================
+st.markdown("## 📊 Economic Indicators")
 
-# Tab 6: Global Markets (Timezones & Currency)
-with tab6:
-    st.markdown("## 🌐 Global Market Information")
+indicator_cols = st.columns(4)
+
+# Get some economic indicators
+try:
+    # VIX (Fear Index)
+    vix = yf.Ticker("^VIX")
+    vix_info = vix.info
+    vix_price = vix_info.get('regularMarketPrice', 15)
+    vix_change = vix_info.get('regularMarketChangePercent', 0)
     
-    col_left, col_right = st.columns(2)
-    
-    with col_left:
-        st.markdown("### 🕐 Global Market Hours")
-        
-        # Get current times for each exchange
-        current_time = datetime.now()
-        
-        for name, config in EXCHANGES.items():
-            try:
-                # Get market status (simplified)
-                if name in st.session_state.exchange_data:
-                    data = st.session_state.exchange_data[name]
-                    is_open = abs(data.index_change) > 0  # Simple indicator
-                    
-                    st.markdown(f"""
-                    <div class="timezone-card">
-                        <strong>{name}</strong><br>
-                        <span style="color: {'#00ff88' if is_open else '#ff4444'}">
-                            {'🟢 OPEN' if is_open else '🔴 CLOSED'}
-                        </span><br>
-                        <small>Currency: {config['currency']}</small>
-                    </div>
-                    """, unsafe_allow_html=True)
-            except:
-                pass
-    
-    with col_right:
-        st.markdown("### 💱 Currency Exchange Rates")
-        
-        # Fetch real-time currency rates
-        rates = fetch_currency_rates()
-        
-        # Create currency conversion table
-        currency_data = []
-        for currency, rate in rates.items():
-            currency_data.append({
-                "Currency": currency,
-                "Rate (USD)": f"{rate:.4f}",
-                "1 USD =": f"{rate:.2f} {currency}",
-                "100 USD =": f"{rate * 100:.2f} {currency}"
-            })
-        
-        df = pd.DataFrame(currency_data)
-        st.dataframe(df, use_container_width=True)
-        
-        st.markdown("""
-        <div style="background: #1a1a1a; padding: 15px; border-radius: 10px; margin-top: 15px;">
-            <strong>💡 Currency Converter</strong><br>
-            Enter amount in USD to convert:
+    with indicator_cols[0]:
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">VIX (Fear Index)</div>
+            <div class="stat-value">{vix_price:.1f}</div>
+            <div class="{'positive' if vix_change < 0 else 'negative'}">{vix_change:+.1f}%</div>
         </div>
         """, unsafe_allow_html=True)
-        
-        usd_amount = st.number_input("USD Amount", min_value=0.0, value=100.0, step=10.0)
-        
-        if usd_amount > 0:
-            st.markdown("### Conversion Results:")
-            conv_cols = st.columns(4)
-            for idx, (currency, rate) in enumerate(list(rates.items())[:8]):
-                with conv_cols[idx % 4]:
-                    converted = usd_amount * rate
-                    st.markdown(f"""
-                    <div style="background: #1e1e1e; padding: 10px; border-radius: 8px; text-align: center; margin: 5px;">
-                        <strong>{currency}</strong><br>
-                        {converted:.2f}
-                    </div>
-                    """, unsafe_allow_html=True)
+    
+    # 10 Year Treasury
+    tnx = yf.Ticker("^TNX")
+    tnx_info = tnx.info
+    tnx_price = tnx_info.get('regularMarketPrice', 4.2)
+    
+    with indicator_cols[1]:
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">10-Yr Treasury</div>
+            <div class="stat-value">{tnx_price:.2f}%</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Gold
+    gold = yf.Ticker("GC=F")
+    gold_info = gold.info
+    gold_price = gold_info.get('regularMarketPrice', 2000)
+    
+    with indicator_cols[2]:
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">Gold</div>
+            <div class="stat-value">${gold_price:.0f}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Oil
+    oil = yf.Ticker("CL=F")
+    oil_info = oil.info
+    oil_price = oil_info.get('regularMarketPrice', 75)
+    
+    with indicator_cols[3]:
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">Crude Oil</div>
+            <div class="stat-value">${oil_price:.1f}</div>
+        </div>
+        """, unsafe_allow_html=True)
+except:
+    pass
 
 # ==================== SIDEBAR ====================
 with st.sidebar:
-    st.markdown("## 🎮 Control Panel")
+    st.markdown("## 🎮 Dashboard Controls")
     
-    # Status indicators
-    st.markdown("### 📡 Status")
+    # Stream Status
     if st.session_state.auto_stream:
-        st.success("🟢 Live Stream: ACTIVE")
+        st.success("🟢 LIVE STREAM: ACTIVE")
     else:
-        st.warning("⚪ Live Stream: INACTIVE")
+        st.warning("⚪ LIVE STREAM: INACTIVE")
     
     if st.session_state.broadcast_active:
-        st.success("📢 Auto-Broadcast: ACTIVE")
+        st.success("📢 BROADCAST: ACTIVE")
     else:
-        st.warning("🔇 Auto-Broadcast: INACTIVE")
+        st.warning("🔇 BROADCAST: INACTIVE")
     
     st.divider()
     
@@ -743,44 +914,8 @@ with st.sidebar:
         for symbol in st.session_state.watchlist:
             if symbol not in st.session_state.ai_predictions:
                 st.session_state.ai_predictions[symbol] = calculate_ai_prediction(symbol)
-        st.rerun()
     
     for sym in st.session_state.watchlist[:5]:
         pred = st.session_state.ai_predictions.get(sym)
         if pred:
-            color = "#00ff88" if pred.signal == "BUY" else "#ff4444" if pred.signal == "SELL" else "#ffaa00"
-            st.markdown(f"<div style='border-left: 3px solid {color}; padding-left: 10px; margin: 5px 0;'>{sym}: {pred.signal} ({pred.confidence}%)</div>", unsafe_allow_html=True)
-    
-    st.divider()
-    
-    # Stats
-    st.markdown("### 📊 Stats")
-    st.metric("Exchanges", len(st.session_state.exchange_data))
-    st.metric("Sectors", len(st.session_state.sector_data))
-    st.metric("Alerts", len(st.session_state.global_alerts))
-    
-    st.divider()
-    
-    # Live Stream Log
-    st.markdown("### 📡 Live Stream Log")
-    for msg in st.session_state.stream_messages[:5]:
-        if msg['type'] == 'alert':
-            st.error(f"[{msg['time']}] {msg['message']}")
-        elif msg['type'] == 'success':
-            st.success(f"[{msg['time']}] {msg['message']}")
-        else:
-            st.info(f"[{msg['time']}] {msg['message']}")
-
-# ==================== AUTO-STREAM LOOP ====================
-if st.session_state.auto_stream:
-    # Auto-update every 30 seconds
-    time.sleep(30)
-    st.rerun()
-
-# ==================== INITIAL DATA LOAD ====================
-if not st.session_state.exchange_data:
-    update_all_data()
-
-# ==================== FOOTER ====================
-st.divider()
-st.caption("⚠️ Not financial advice. Always do your own research. Data updates every 30 seconds when streaming is active.")
+            color = "#00ff88" if pred.signal == "BU
