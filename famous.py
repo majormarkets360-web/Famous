@@ -88,7 +88,7 @@ def init_session_state():
         st.session_state.stock_analysis = {}
     if 'stream_thread_started' not in st.session_state:
         st.session_state.stream_thread_started = False
-        if 'social_streamer' not in st.session_state:
+    if 'social_streamer' not in st.session_state:
         st.session_state.social_streamer = SocialMediaStreamer()
 
 # Call initialization
