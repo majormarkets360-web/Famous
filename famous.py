@@ -206,6 +206,36 @@ class GlobalAlert:
     message: str
     timestamp: datetime
 
+@dataclass
+class AIPrediction:
+    symbol: str
+    current_price: float
+    predicted_price_1w: float
+    predicted_price_1m: float
+    predicted_price_3m: float
+    confidence_1w: int
+    confidence_1m: int
+    confidence_3m: int
+    signal: str
+    target_price: float
+    stop_loss: float
+    risk_level: str
+    reason: str
+
+@dataclass
+class InvestmentPlan:
+    symbol: str
+    investment_amount: float
+    time_horizon: str
+    current_price: float
+    predicted_price: float
+    potential_return: float
+    risk_score: int
+    recommended_action: str
+    shares_to_buy: int
+    optimal_entry: str
+    exit_strategy: str
+
 # ==================== PAGE CONFIG ====================
 st.set_page_config(
     page_title="Global AI Trading Dashboard",
@@ -237,6 +267,8 @@ def init_session_state():
         st.session_state.sector_data = {}
     if 'global_alerts' not in st.session_state:
         st.session_state.global_alerts = []
+    if 'ai_predictions' not in st.session_state:
+        st.session_state.ai_predictions = {}
     
     if SOCIAL_STREAMER_AVAILABLE and 'social_streamer' not in st.session_state:
         st.session_state.social_streamer = SocialMediaStreamer()
@@ -410,6 +442,173 @@ def analyze_stock_for_alert(symbol, exchange_name, sector_name):
     except:
         return None
 
+def calculate_ai_prediction(symbol):
+    """Calculate AI prediction based on technical analysis and historical patterns"""
+    try:
+        stock = yf.Ticker(symbol)
+        info = stock.info
+        hist = stock.history(period="6mo")
+        
+        if hist.empty:
+            return None
+        
+        current_price = info.get('regularMarketPrice', info.get('currentPrice', 0))
+        
+        if current_price == 0:
+            return None
+        
+        # Calculate moving averages
+        ma_20 = hist['Close'].rolling(20).mean().iloc[-1]
+        ma_50 = hist['Close'].rolling(50).mean().iloc[-1] if len(hist) > 50 else current_price
+        ma_200 = hist['Close'].rolling(200).mean().iloc[-1] if len(hist) > 200 else current_price
+        
+        # Calculate RSI
+        delta = hist['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        current_rsi = rsi.iloc[-1] if not pd.isna(rsi.iloc[-1]) else 50
+        
+        # Calculate momentum
+        momentum_1w = (hist['Close'].iloc[-1] / hist['Close'].iloc[-5] - 1) * 100 if len(hist) > 5 else 0
+        momentum_1m = (hist['Close'].iloc[-1] / hist['Close'].iloc[-20] - 1) * 100 if len(hist) > 20 else 0
+        
+        # Make predictions based on technical indicators
+        if current_price > ma_20 and current_price > ma_50 and current_rsi < 70:
+            predicted_1w = current_price * (1 + max(0, momentum_1w / 100) + 0.02)
+            predicted_1m = current_price * (1 + max(0, momentum_1m / 100) + 0.05)
+            predicted_3m = current_price * (1 + max(0, momentum_1m / 100) * 1.5 + 0.08)
+            confidence_1w = min(90, 60 + abs(momentum_1w))
+            confidence_1m = min(85, 55 + abs(momentum_1m))
+            confidence_3m = min(80, 50 + abs(momentum_1m))
+            
+            if momentum_1w > 5 and current_rsi < 50:
+                signal = "STRONG BUY"
+                risk_level = "LOW"
+            elif momentum_1w > 2:
+                signal = "BUY"
+                risk_level = "LOW"
+            else:
+                signal = "HOLD"
+                risk_level = "MEDIUM"
+                
+        elif current_price < ma_20 and current_price < ma_50 and current_rsi > 30:
+            predicted_1w = current_price * (1 - max(0, abs(momentum_1w) / 100) - 0.02)
+            predicted_1m = current_price * (1 - max(0, abs(momentum_1m) / 100) - 0.05)
+            predicted_3m = current_price * (1 - max(0, abs(momentum_1m) / 100) * 1.5 - 0.08)
+            confidence_1w = min(90, 60 + abs(momentum_1w))
+            confidence_1m = min(85, 55 + abs(momentum_1m))
+            confidence_3m = min(80, 50 + abs(momentum_1m))
+            
+            if momentum_1w < -5 and current_rsi > 50:
+                signal = "STRONG SELL"
+                risk_level = "HIGH"
+            elif momentum_1w < -2:
+                signal = "SELL"
+                risk_level = "HIGH"
+            else:
+                signal = "HOLD"
+                risk_level = "MEDIUM"
+        else:
+            predicted_1w = current_price * 1.02
+            predicted_1m = current_price * 1.03
+            predicted_3m = current_price * 1.05
+            confidence_1w = 50
+            confidence_1m = 50
+            confidence_3m = 50
+            signal = "HOLD"
+            risk_level = "MEDIUM"
+        
+        # Set target and stop loss
+        if signal in ["STRONG BUY", "BUY"]:
+            target_price = current_price * 1.08
+            stop_loss = current_price * 0.95
+        elif signal in ["STRONG SELL", "SELL"]:
+            target_price = current_price * 0.92
+            stop_loss = current_price * 1.05
+        else:
+            target_price = current_price * 1.03
+            stop_loss = current_price * 0.97
+        
+        reason = f"Price {'above' if current_price > ma_20 else 'below'} MA20, RSI: {current_rsi:.1f}, Momentum: {momentum_1w:+.1f}%"
+        
+        return AIPrediction(
+            symbol=symbol,
+            current_price=current_price,
+            predicted_price_1w=predicted_1w,
+            predicted_price_1m=predicted_1m,
+            predicted_price_3m=predicted_3m,
+            confidence_1w=int(confidence_1w),
+            confidence_1m=int(confidence_1m),
+            confidence_3m=int(confidence_3m),
+            signal=signal,
+            target_price=target_price,
+            stop_loss=stop_loss,
+            risk_level=risk_level,
+            reason=reason
+        )
+        
+    except Exception as e:
+        add_stream_message(f"AI prediction error for {symbol}: {str(e)}", 'error')
+        return None
+
+def calculate_investment_plan(symbol, investment_amount, time_horizon, prediction):
+    """Calculate optimal investment plan"""
+    if not prediction:
+        return None
+    
+    current_price = prediction.current_price
+    shares_to_buy = int(investment_amount / current_price)
+    
+    # Determine predicted price based on time horizon
+    if time_horizon == "short":
+        predicted_price = prediction.predicted_price_1w
+        confidence = prediction.confidence_1w
+        hold_period = "1 week"
+    elif time_horizon == "medium":
+        predicted_price = prediction.predicted_price_1m
+        confidence = prediction.confidence_1m
+        hold_period = "1 month"
+    else:
+        predicted_price = prediction.predicted_price_3m
+        confidence = prediction.confidence_3m
+        hold_period = "3 months"
+    
+    potential_return = ((predicted_price - current_price) / current_price * 100)
+    
+    # Determine recommended action
+    if prediction.signal in ["STRONG BUY", "BUY"] and potential_return > 5:
+        recommended_action = "✅ STRONG BUY - Good entry point"
+        optimal_entry = "Current price is favorable"
+        exit_strategy = f"Sell at ${prediction.target_price:.2f} or use trailing stop loss"
+    elif prediction.signal == "HOLD" and potential_return > 2:
+        recommended_action = "⏸️ HOLD - Wait for better entry"
+        optimal_entry = f"Consider buying below ${current_price * 0.97:.2f}"
+        exit_strategy = "Monitor closely, set alerts for price breakouts"
+    elif prediction.signal in ["SELL", "STRONG SELL"]:
+        recommended_action = "🔴 AVOID - Bearish signals detected"
+        optimal_entry = "Not recommended at current levels"
+        exit_strategy = "If holding, consider reducing position"
+    else:
+        recommended_action = "⚡ CAUTIOUS - Monitor before investing"
+        optimal_entry = f"Ideal entry: ${current_price * 0.95:.2f} - ${current_price * 0.98:.2f}"
+        exit_strategy = "Set limit orders for profit taking"
+    
+    return InvestmentPlan(
+        symbol=symbol,
+        investment_amount=investment_amount,
+        time_horizon=time_horizon,
+        current_price=current_price,
+        predicted_price=predicted_price,
+        potential_return=potential_return,
+        risk_score=100 - confidence,
+        recommended_action=recommended_action,
+        shares_to_buy=shares_to_buy,
+        optimal_entry=optimal_entry,
+        exit_strategy=exit_strategy
+    )
+
 # ==================== CUSTOM CSS ====================
 st.markdown("""
 <style>
@@ -478,7 +677,7 @@ st.markdown("""
 st.markdown("""
 <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 2rem; border-radius: 20px; margin-bottom: 2rem; text-align: center;">
     <h1 style="color: white;">🌍 Global AI Trading Intelligence</h1>
-    <p style="color: white; font-size: 18px;">8 Global Exchanges | 11 Sectors | Real-time AI Analysis | Live Alerts</p>
+    <p style="color: white; font-size: 18px;">8 Global Exchanges | 11 Sectors | AI Predictions | Investment Calculator</p>
     <div style="display: flex; justify-content: center; gap: 10px; margin-top: 10px;">
         <span class="live-badge">🔴 LIVE STREAMING</span>
         <span>🤖 AI Powered</span>
@@ -505,160 +704,94 @@ with col_refresh2:
                             st.session_state.global_alerts.append(alert)
                             add_stream_message(f"🌍 ALERT: {alert.alert_type} {alert.symbol}", 'alert')
             
+            # Update AI predictions
+            for symbol in st.session_state.watchlist:
+                st.session_state.ai_predictions[symbol] = calculate_ai_prediction(symbol)
+            
             st.session_state.last_update = datetime.now()
         st.success("Data updated!")
 
 st.caption(f"Last updated: {st.session_state.last_update.strftime('%Y-%m-%d %H:%M:%S')}")
 
-# ==================== GLOBAL EXCHANGES SECTION ====================
-st.markdown("## 🌍 Global Market Exchanges")
+# ==================== TABS SECTION ====================
+# THIS IS WHERE THE TABS ARE LOCATED
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    "🌍 Exchanges", 
+    "📈 Sectors", 
+    "🚨 Alerts", 
+    "🤖 AI Predictions", 
+    "💰 Investment Calculator", 
+    "📡 Live Stream",
+    "⚙️ Settings"
+])
 
-exchange_cols = st.columns(4)
-for idx, (exchange_name, exchange_data) in enumerate(st.session_state.exchange_data.items()):
-    with exchange_cols[idx % 4]:
-        color = EXCHANGES[exchange_name]['color']
-        st.markdown(f"""
-        <div class="exchange-card" style="border-left-color: {color};">
-            <h3>{exchange_name}</h3>
-            <div style="font-size: 24px; font-weight: bold;">{exchange_data.index_value:.2f}</div>
-            <div style="color: {'#00ff88' if exchange_data.index_change >= 0 else '#ff4444'};">
-                {exchange_data.index_change:+.2f}%
+# ==================== TAB 1: EXCHANGES ====================
+with tab1:
+    st.markdown("## 🌍 Global Market Exchanges")
+    
+    exchange_cols = st.columns(4)
+    for idx, (exchange_name, exchange_data) in enumerate(st.session_state.exchange_data.items()):
+        with exchange_cols[idx % 4]:
+            color = EXCHANGES[exchange_name]['color']
+            st.markdown(f"""
+            <div class="exchange-card" style="border-left-color: {color};">
+                <h3>{exchange_name}</h3>
+                <div style="font-size: 24px; font-weight: bold;">{exchange_data.index_value:.2f}</div>
+                <div style="color: {'#00ff88' if exchange_data.index_change >= 0 else '#ff4444'};">
+                    {exchange_data.index_change:+.2f}%
+                </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        with st.expander("📊 Top Movers"):
-            st.markdown("**Top Gainers:**")
-            for stock in exchange_data.top_gainers:
-                st.markdown(f"- {stock['symbol']}: ${stock['price']:.2f} (+{stock['change']:.1f}%)")
-            st.markdown("**Top Losers:**")
-            for stock in exchange_data.top_losers:
-                st.markdown(f"- {stock['symbol']}: ${stock['price']:.2f} ({stock['change']:.1f}%)")
+            """, unsafe_allow_html=True)
+            
+            with st.expander("📊 Top Movers"):
+                st.markdown("**Top Gainers:**")
+                for stock in exchange_data.top_gainers:
+                    st.markdown(f"- {stock['symbol']}: ${stock['price']:.2f} (+{stock['change']:.1f}%)")
+                st.markdown("**Top Losers:**")
+                for stock in exchange_data.top_losers:
+                    st.markdown(f"- {stock['symbol']}: ${stock['price']:.2f} ({stock['change']:.1f}%)")
 
-# ==================== SECTORS SECTION ====================
-st.markdown("## 📈 Sector Analysis")
-
-sector_rows = [st.columns(3) for _ in range(4)]
-for idx, (sector_name, sector_data) in enumerate(st.session_state.sector_data.items()):
-    row = idx // 3
-    col = idx % 3
-    with sector_rows[row][col]:
-        color = SECTORS[sector_name]['color']
-        signal_class = "positive" if sector_data.signal == "BUY" else "negative" if sector_data.signal == "SELL" else ""
-        st.markdown(f"""
-        <div class="sector-card" style="border-left: 3px solid {color};">
-            <h4>{sector_name}</h4>
-            <div style="font-size: 20px; font-weight: bold;">{sector_data.performance:+.1f}%</div>
-            <div class="{signal_class}">{sector_data.signal} - {sector_data.confidence}%</div>
-            <small>Top: {sector_data.top_stock} (+{sector_data.top_gain:.1f}%)</small>
-        </div>
-        """, unsafe_allow_html=True)
-
-# ==================== GLOBAL ALERTS SECTION ====================
-st.markdown("## 🚨 Global Trading Alerts")
-
-if st.session_state.global_alerts:
-    for alert in st.session_state.global_alerts[-10:]:
-        alert_class = "alert-buy" if "BUY" in alert.alert_type else "alert-sell"
-        st.markdown(f"""
-        <div class="{alert_class}">
-            <div style="display: flex; justify-content: space-between;">
-                <div><strong>{alert.alert_type}</strong> {alert.symbol} ({alert.sector})</div>
-                <div>{alert.timestamp.strftime('%H:%M:%S')}</div>
+# ==================== TAB 2: SECTORS ====================
+with tab2:
+    st.markdown("## 📈 Sector Analysis")
+    
+    sector_rows = [st.columns(3) for _ in range(4)]
+    for idx, (sector_name, sector_data) in enumerate(st.session_state.sector_data.items()):
+        row = idx // 3
+        col = idx % 3
+        with sector_rows[row][col]:
+            color = SECTORS[sector_name]['color']
+            signal_class = "positive" if sector_data.signal == "BUY" else "negative" if sector_data.signal == "SELL" else ""
+            st.markdown(f"""
+            <div class="sector-card" style="border-left: 3px solid {color};">
+                <h4>{sector_name}</h4>
+                <div style="font-size: 20px; font-weight: bold;">{sector_data.performance:+.1f}%</div>
+                <div class="{signal_class}">{sector_data.signal} - {sector_data.confidence}%</div>
+                <small>Top: {sector_data.top_stock} (+{sector_data.top_gain:.1f}%)</small>
             </div>
-            <div style="font-size: 20px;">${alert.price:.2f} ({alert.change:+.1f}%)</div>
-            <div>{alert.message}</div>
-            <div>Confidence: {alert.confidence}% | Exchange: {alert.exchange}</div>
-        </div>
-        """, unsafe_allow_html=True)
-else:
-    st.info("No active alerts at this moment")
+            """, unsafe_allow_html=True)
 
-# ==================== LIVE STREAM ====================
-with st.expander("📡 Live Data Stream"):
-    for msg in st.session_state.stream_messages[:30]:
-        if msg['type'] == 'alert':
-            st.error(f"[{msg['time']}] {msg['message']}")
-        elif msg['type'] == 'success':
-            st.success(f"[{msg['time']}] {msg['message']}")
-        else:
-            st.info(f"[{msg['time']}] {msg['message']}")
-
-# ==================== SIDEBAR ====================
-with st.sidebar:
-    st.markdown("## 🎮 Control Panel")
+# ==================== TAB 3: ALERTS ====================
+with tab3:
+    st.markdown("## 🚨 Global Trading Alerts")
     
-    # Live Stream Control
-    st.markdown("### 📡 Live Stream")
-    if st.button("▶️ START STREAM", use_container_width=True):
-        st.session_state.auto_stream = True
-        add_stream_message("🎥 Live stream started!", 'success')
-    
-    if st.button("⏸️ STOP STREAM", use_container_width=True):
-        st.session_state.auto_stream = False
-        add_stream_message("⏸️ Live stream stopped", 'warning')
-    
-    st.divider()
-    
-    # Watchlist
-    st.markdown("### 📊 My Watchlist")
-    watchlist_input = st.text_input("Add symbols (comma separated)", placeholder="AAPL,TSLA,NVDA")
-    if watchlist_input:
-        st.session_state.watchlist = [s.strip() for s in watchlist_input.split(',')]
-    for symbol in st.session_state.watchlist[:5]:
-        st.write(f"- {symbol}")
-    
-    st.divider()
-    
-    # Auto-Broadcaster
-    st.markdown("### 🤖 Auto-Broadcaster")
-    if AUTO_BROADCASTER_AVAILABLE:
-        col_b1, col_b2 = st.columns(2)
-        with col_b1:
-            if st.button("▶️ START", use_container_width=True):
-                if 'broadcaster' in st.session_state:
-                    msg = st.session_state.broadcaster.start_broadcasting()
-                    st.success(msg)
-        with col_b2:
-            if st.button("⏸️ STOP", use_container_width=True):
-                if 'broadcaster' in st.session_state:
-                    msg = st.session_state.broadcaster.stop_broadcasting()
-                    st.warning(msg)
-        
-        if 'broadcaster' in st.session_state:
-            status = st.session_state.broadcaster.get_status()
-            if status.get('is_running', False):
-                st.success("🟢 Broadcasting Active")
-            else:
-                st.warning("⚪ Broadcasting Inactive")
+    if st.session_state.global_alerts:
+        for alert in st.session_state.global_alerts[-10:]:
+            alert_class = "alert-buy" if "BUY" in alert.alert_type else "alert-sell"
+            st.markdown(f"""
+            <div class="{alert_class}">
+                <div style="display: flex; justify-content: space-between;">
+                    <div><strong>{alert.alert_type}</strong> {alert.symbol} ({alert.sector})</div>
+                    <div>{alert.timestamp.strftime('%H:%M:%S')}</div>
+                </div>
+                <div style="font-size: 20px;">${alert.price:.2f} ({alert.change:+.1f}%)</div>
+                <div>{alert.message}</div>
+                <div>Confidence: {alert.confidence}% | Exchange: {alert.exchange}</div>
+            </div>
+            """, unsafe_allow_html=True)
     else:
-        st.warning("⚠️ Auto-broadcaster not available")
-    
-    st.divider()
-    
-    # Stats
-    st.markdown("### 📊 Dashboard Stats")
-    st.metric("Active Alerts", len(st.session_state.global_alerts))
-    st.metric("Exchanges", len(st.session_state.exchange_data))
-    st.metric("Sectors", len(st.session_state.sector_data))
+        st.info("No active alerts at this moment")
 
-# ==================== AUTO-STREAM LOOP ====================
-if st.session_state.auto_stream:
-    time.sleep(30)
-    st.rerun()
-
-# ==================== FOOTER ====================
-st.divider()
-st.markdown("""
-<div style="text-align: center; color: #888; padding: 20px;">
-    🌍 Global AI Trading Dashboard - Real-time Analysis Across 8 Major Exchanges<br>
-    🤖 AI-Powered Predictions | 11 Sector Analysis | Live Global Alerts<br>
-    <small>⚠️ Not financial advice. Always do your own research before trading.</small>
-</div>
-""", unsafe_allow_html=True)
-
-# ==================== INITIAL DATA LOAD ====================
-if not st.session_state.exchange_data:
-    with st.spinner("Loading global market data..."):
-        st.session_state.exchange_data = fetch_exchange_data()
-        st.session_state.sector_data = fetch_sector_data()
+# ==================== TAB 4: AI PREDICTIONS ====================
+with tab4:
+    st.markdown("## 🤖 AI
