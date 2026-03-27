@@ -460,7 +460,6 @@ def calculate_ai_prediction(symbol):
         # Calculate moving averages
         ma_20 = hist['Close'].rolling(20).mean().iloc[-1]
         ma_50 = hist['Close'].rolling(50).mean().iloc[-1] if len(hist) > 50 else current_price
-        ma_200 = hist['Close'].rolling(200).mean().iloc[-1] if len(hist) > 200 else current_price
         
         # Calculate RSI
         delta = hist['Close'].diff()
@@ -531,7 +530,7 @@ def calculate_ai_prediction(symbol):
             target_price = current_price * 1.03
             stop_loss = current_price * 0.97
         
-        reason = f"Price {'above' if current_price > ma_20 else 'below'} MA20, RSI: {current_rsi:.1f}, Momentum: {momentum_1w:+.1f}%"
+        reason = f"Price above MA20, RSI: {current_rsi:.1f}, Momentum: {momentum_1w:+.1f}%"
         
         return AIPrediction(
             symbol=symbol,
@@ -559,39 +558,36 @@ def calculate_investment_plan(symbol, investment_amount, time_horizon, predictio
         return None
     
     current_price = prediction.current_price
-    shares_to_buy = int(investment_amount / current_price)
+    shares_to_buy = int(investment_amount / current_price) if current_price > 0 else 0
     
     # Determine predicted price based on time horizon
     if time_horizon == "short":
         predicted_price = prediction.predicted_price_1w
         confidence = prediction.confidence_1w
-        hold_period = "1 week"
     elif time_horizon == "medium":
         predicted_price = prediction.predicted_price_1m
         confidence = prediction.confidence_1m
-        hold_period = "1 month"
     else:
         predicted_price = prediction.predicted_price_3m
         confidence = prediction.confidence_3m
-        hold_period = "3 months"
     
-    potential_return = ((predicted_price - current_price) / current_price * 100)
+    potential_return = ((predicted_price - current_price) / current_price * 100) if current_price > 0 else 0
     
     # Determine recommended action
     if prediction.signal in ["STRONG BUY", "BUY"] and potential_return > 5:
-        recommended_action = "✅ STRONG BUY - Good entry point"
+        recommended_action = "STRONG BUY - Good entry point"
         optimal_entry = "Current price is favorable"
         exit_strategy = f"Sell at ${prediction.target_price:.2f} or use trailing stop loss"
     elif prediction.signal == "HOLD" and potential_return > 2:
-        recommended_action = "⏸️ HOLD - Wait for better entry"
+        recommended_action = "HOLD - Wait for better entry"
         optimal_entry = f"Consider buying below ${current_price * 0.97:.2f}"
         exit_strategy = "Monitor closely, set alerts for price breakouts"
     elif prediction.signal in ["SELL", "STRONG SELL"]:
-        recommended_action = "🔴 AVOID - Bearish signals detected"
+        recommended_action = "AVOID - Bearish signals detected"
         optimal_entry = "Not recommended at current levels"
         exit_strategy = "If holding, consider reducing position"
     else:
-        recommended_action = "⚡ CAUTIOUS - Monitor before investing"
+        recommended_action = "CAUTIOUS - Monitor before investing"
         optimal_entry = f"Ideal entry: ${current_price * 0.95:.2f} - ${current_price * 0.98:.2f}"
         exit_strategy = "Set limit orders for profit taking"
     
@@ -714,15 +710,13 @@ with col_refresh2:
 st.caption(f"Last updated: {st.session_state.last_update.strftime('%Y-%m-%d %H:%M:%S')}")
 
 # ==================== TABS SECTION ====================
-# THIS IS WHERE THE TABS ARE LOCATED
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🌍 Exchanges", 
     "📈 Sectors", 
     "🚨 Alerts", 
     "🤖 AI Predictions", 
     "💰 Investment Calculator", 
-    "📡 Live Stream",
-    "⚙️ Settings"
+    "📡 Live Stream"
 ])
 
 # ==================== TAB 1: EXCHANGES ====================
@@ -794,4 +788,14 @@ with tab3:
 
 # ==================== TAB 4: AI PREDICTIONS ====================
 with tab4:
-    st.markdown("## 🤖 AI)
+    st.markdown("## 🤖 AI-Powered Stock Predictions")
+    st.caption("Machine learning analysis based on historical patterns, technical indicators, and market sentiment")
+    
+    # Stock selector for AI predictions
+    ai_symbol = st.selectbox("Select Stock for AI Analysis", st.session_state.watchlist)
+    
+    if ai_symbol:
+        with st.spinner(f"Analyzing {ai_symbol} with AI..."):
+            # Get prediction (use cached if available)
+            if ai_symbol in st.session_state.ai_predictions:
+                ai_prediction = st.session_state.ai
