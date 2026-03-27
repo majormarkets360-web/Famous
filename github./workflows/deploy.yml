@@ -1,0 +1,42 @@
+name: Deploy Dashboard
+
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '0 */6 * * *'  # Run every 6 hours
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg
+    
+    - name: Run auto-broadcaster
+      env:
+        TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
+        YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+      run: |
+        streamlit run famous.py &
+        sleep 10
+        python -c "from auto_broadcaster import AutoBroadcaster; AutoBroadcaster().start_broadcasting()"
+    
+    - name: Deploy to Streamlit Cloud
+      run: |
+        # Deploy to Streamlit Cloud
+        curl -X POST "https://api.streamlit.io/v1/deploy" \
+          -H "Authorization: Bearer ${{ secrets.STREAMLIT_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          -d '{"repo": "your-username/your-repo", "branch": "main"}'
