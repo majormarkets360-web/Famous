@@ -11,18 +11,36 @@ import base64
 import requests
 import json
 import os
-from moviepy.editor import ImageClip, AudioFileClip, CompositeVideoClip, TextClip
-from gtts import gTTS
 import tempfile
+from gtts import gTTS
+import warnings
+
+warnings.filterwarnings('ignore')
+
+# Try to import moviepy with fallback
+try:
+    from moviepy.editor import ImageClip, AudioFileClip, CompositeVideoClip, TextClip
+    MOVIEPY_AVAILABLE = True
+except ImportError:
+    MOVIEPY_AVAILABLE = False
+    print("Warning: moviepy not available. Video features disabled.")
+
+# Try to import matplotlib for charts
+try:
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
 
 class AutoBroadcaster:
     """Autonomous content creation and broadcasting system"""
     
-    def __init__(self, social_streamer):
+    def __init__(self, social_streamer=None):
         self.social_streamer = social_streamer
         self.content_queue = []
         self.broadcast_schedule = {}
         self.is_running = False
+        self.broadcast_log = []
         
     def start_broadcasting(self):
         """Start autonomous broadcasting"""
@@ -39,11 +57,13 @@ class AutoBroadcaster:
         thread = threading.Thread(target=self._run_scheduler, daemon=True)
         thread.start()
         
+        self._log_broadcast("Auto-broadcaster started")
         return "Broadcasting started"
     
     def stop_broadcasting(self):
         """Stop autonomous broadcasting"""
         self.is_running = False
+        self._log_broadcast("Auto-broadcaster stopped")
         return "Broadcasting stopped"
     
     def _run_scheduler(self):
@@ -51,6 +71,13 @@ class AutoBroadcaster:
         while self.is_running:
             schedule.run_pending()
             time.sleep(1)
+    
+    def _log_broadcast(self, message):
+        """Log broadcast activity"""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.broadcast_log.append(f"[{timestamp}] {message}")
+        # Keep only last 100 logs
+        self.broadcast_log = self.broadcast_log[-100:]
     
     def broadcast_market_update(self):
         """Create and broadcast market update"""
@@ -60,6 +87,9 @@ class AutoBroadcaster:
             info = spy.info
             price = info.get('regularMarketPrice', 0)
             change = info.get('regularMarketChangePercent', 0)
+            
+            if price == 0:
+                return
             
             # Create message
             sentiment = "🟢 BULLISH" if change > 0 else "🔴 BEARISH"
@@ -71,15 +101,28 @@ AI Confidence: {min(95, abs(change)*20 + 60):.0f}%
 
 #MarketUpdate #Stocks #Trading #SP500"""
             
+            # Create chart if available
+            chart_path = self.create_market_chart('SPY')
+            
             # Broadcast to all platforms
-            self.social_streamer.stream_to_all(
-                data={'symbol': 'SPY'},
-                message=message,
-                image_path=self.create_market_chart('SPY')
-            )
+            if self.social_streamer:
+                self.social_streamer.stream_to_all(
+                    data={'symbol': 'SPY'},
+                    message=message,
+                    image_path=chart_path
+                )
+            
+            self._log_broadcast(f"Market update broadcast: SPY ${price:.2f} ({change:+.1f}%)")
+            
+            # Clean up temp file
+            if chart_path and os.path.exists(chart_path):
+                try:
+                    os.remove(chart_path)
+                except:
+                    pass
             
         except Exception as e:
-            print(f"Market update error: {e}")
+            self._log_broadcast(f"Market update error: {str(e)}")
     
     def broadcast_top_movers(self):
         """Broadcast top gainers and losers"""
@@ -93,7 +136,11 @@ AI Confidence: {min(95, abs(change)*20 + 60):.0f}%
                 info = stock.info
                 price = info.get('regularMarketPrice', 0)
                 change = info.get('regularMarketChangePercent', 0)
-                top_movers.append(f"{symbol}: {change:+.1f}%")
+                if price > 0:
+                    top_movers.append(f"{symbol}: {change:+.1f}%")
+            
+            if not top_movers:
+                return
             
             message = f"""🚀 TOP MOVERS {datetime.now().strftime('%H:%M')}
             
@@ -103,13 +150,16 @@ Biggest gainers today: Check your watchlist!
 
 #TopMovers #StockMarket #Gainers #Losers"""
             
-            self.social_streamer.stream_to_all(
-                data={'symbol': 'MARKET'},
-                message=message
-            )
+            if self.social_streamer:
+                self.social_streamer.stream_to_all(
+                    data={'symbol': 'MARKET'},
+                    message=message
+                )
+            
+            self._log_broadcast(f"Top movers broadcast: {', '.join(top_movers)}")
             
         except Exception as e:
-            print(f"Top movers error: {e}")
+            self._log_broadcast(f"Top movers error: {str(e)}")
     
     def broadcast_sector_analysis(self):
         """Broadcast sector performance analysis"""
@@ -120,34 +170,56 @@ Biggest gainers today: Check your watchlist!
             }
             
             sector_performance = []
+            strongest = None
+            strongest_change = -100
+            weakest = None
+            weakest_change = 100
+            
             for etf, name in sectors.items():
-                ticker = yf.Ticker(etf)
-                info = ticker.info
-                change = info.get('regularMarketChangePercent', 0)
-                emoji = "🟢" if change > 0 else "🔴"
-                sector_performance.append(f"{emoji} {name}: {change:+.1f}%")
+                try:
+                    ticker = yf.Ticker(etf)
+                    info = ticker.info
+                    change = info.get('regularMarketChangePercent', 0)
+                    
+                    if change > strongest_change:
+                        strongest_change = change
+                        strongest = name
+                    if change < weakest_change:
+                        weakest_change = change
+                        weakest = name
+                    
+                    emoji = "🟢" if change > 0 else "🔴"
+                    sector_performance.append(f"{emoji} {name}: {change:+.1f}%")
+                except:
+                    pass
+            
+            if not sector_performance:
+                return
             
             message = f"""📈 SECTOR ANALYSIS {datetime.now().strftime('%H:%M')}
             
-{' | '.join(sector_performance)}
+{' | '.join(sector_performance[:6])}
 
-Strongest: {sectors[max(sectors, key=lambda x: yf.Ticker(x).info.get('regularMarketChangePercent', 0))]}
-Weakest: {sectors[min(sectors, key=lambda x: yf.Ticker(x).info.get('regularMarketChangePercent', 0))]}
+Strongest: {strongest} ({strongest_change:+.1f}%)
+Weakest: {weakest} ({weakest_change:+.1f}%)
 
 #SectorAnalysis #MarketTrends #TradingStrategy"""
             
-            self.social_streamer.stream_to_all(
-                data={'symbol': 'SECTORS'},
-                message=message
-            )
+            if self.social_streamer:
+                self.social_streamer.stream_to_all(
+                    data={'symbol': 'SECTORS'},
+                    message=message
+                )
+            
+            self._log_broadcast(f"Sector analysis broadcast: {strongest} strongest, {weakest} weakest")
             
         except Exception as e:
-            print(f"Sector analysis error: {e}")
+            self._log_broadcast(f"Sector analysis error: {str(e)}")
     
     def broadcast_trading_alerts(self):
         """Broadcast active trading alerts"""
         try:
-            # Get top 3 alerts from global alerts
+            # Get top alerts from main app if available
             alerts = self.get_active_alerts()
             
             if alerts:
@@ -160,13 +232,16 @@ Weakest: {sectors[min(sectors, key=lambda x: yf.Ticker(x).info.get('regularMarke
                 
                 message += "#TradingAlerts #StockSignals #AITrading"
                 
-                self.social_streamer.stream_to_all(
-                    data={'symbol': 'ALERTS'},
-                    message=message
-                )
+                if self.social_streamer:
+                    self.social_streamer.stream_to_all(
+                        data={'symbol': 'ALERTS'},
+                        message=message
+                    )
+                
+                self._log_broadcast(f"Trading alerts broadcast: {len(alerts)} alerts")
             
         except Exception as e:
-            print(f"Trading alerts error: {e}")
+            self._log_broadcast(f"Trading alerts error: {str(e)}")
     
     def broadcast_daily_summary(self):
         """Broadcast daily market summary"""
@@ -175,43 +250,56 @@ Weakest: {sectors[min(sectors, key=lambda x: yf.Ticker(x).info.get('regularMarke
             spy = yf.Ticker("SPY")
             hist = spy.history(period="1d")
             
-            if not hist.empty:
+            if not hist.empty and len(hist) > 0:
                 open_price = hist['Open'].iloc[0]
                 close_price = hist['Close'].iloc[-1]
-                day_change = ((close_price - open_price) / open_price * 100)
+                day_change = ((close_price - open_price) / open_price * 100) if open_price else 0
                 
                 message = f"""📊 DAILY MARKET SUMMARY - {datetime.now().strftime('%Y-%m-%d')}
                 
 S&P 500: ${close_price:.2f} ({day_change:+.2f}%)
 Day Range: ${hist['Low'].min():.2f} - ${hist['High'].max():.2f}
-Volume: {hist['Volume'].sum():,}
+Volume: {int(hist['Volume'].sum()):,}
 
 Top Performers: Tech & Financials
 AI Prediction: {'Bullish' if day_change > 0 else 'Bearish'}
 
 #DailySummary #MarketWrap #TradingRecap"""
                 
-                # Create video summary
-                video_path = self.create_summary_video(spy, day_change)
+                # Try to create video summary if moviepy available
+                video_path = None
+                if MOVIEPY_AVAILABLE:
+                    video_path = self.create_summary_video(day_change)
                 
-                self.social_streamer.stream_to_all(
-                    data={'symbol': 'DAILY'},
-                    message=message,
-                    video_path=video_path
-                )
+                if self.social_streamer:
+                    self.social_streamer.stream_to_all(
+                        data={'symbol': 'DAILY'},
+                        message=message,
+                        video_path=video_path
+                    )
+                
+                # Clean up video
+                if video_path and os.path.exists(video_path):
+                    try:
+                        os.remove(video_path)
+                    except:
+                        pass
+                
+                self._log_broadcast(f"Daily summary broadcast: {day_change:+.1f}%")
             
         except Exception as e:
-            print(f"Daily summary error: {e}")
+            self._log_broadcast(f"Daily summary error: {str(e)}")
     
     def create_market_chart(self, symbol):
         """Create chart image for broadcasting"""
+        if not MATPLOTLIB_AVAILABLE:
+            return None
+        
         try:
-            import matplotlib.pyplot as plt
-            
             stock = yf.Ticker(symbol)
             hist = stock.history(period="1d", interval="5m")
             
-            if not hist.empty:
+            if not hist.empty and len(hist) > 1:
                 plt.style.use('dark_background')
                 fig, ax = plt.subplots(figsize=(10, 6))
                 
@@ -227,16 +315,23 @@ AI Prediction: {'Bullish' if day_change > 0 else 'Bearish'}
                 plt.close()
                 
                 return chart_path
+            else:
+                return None
             
-        except:
+        except Exception as e:
+            self._log_broadcast(f"Chart creation error: {str(e)}")
             return None
     
-    def create_summary_video(self, stock_data, day_change):
+    def create_summary_video(self, day_change):
         """Create video summary for daily broadcast"""
+        if not MOVIEPY_AVAILABLE:
+            return None
+        
         try:
-            # Create text-based video
+            # Create text
             text = f"Market Summary\n{datetime.now().strftime('%Y-%m-%d')}\n\nS&P 500: {day_change:+.2f}%\n\nAI Analysis: {'Bullish' if day_change > 0 else 'Bearish'}"
             
+            # Create audio
             tts = gTTS(text)
             audio_path = tempfile.mktemp(suffix=".mp3")
             tts.save(audio_path)
@@ -246,49 +341,86 @@ AI Prediction: {'Bullish' if day_change > 0 else 'Bearish'}
             txt_clip = txt_clip.set_duration(15).set_position('center')
             
             video_path = tempfile.mktemp(suffix=".mp4")
-            txt_clip.write_videofile(video_path, fps=24)
+            txt_clip.write_videofile(video_path, fps=24, verbose=False, logger=None)
+            
+            # Clean up audio
+            if os.path.exists(audio_path):
+                os.remove(audio_path)
             
             return video_path
             
-        except:
+        except Exception as e:
+            self._log_broadcast(f"Video creation error: {str(e)}")
             return None
     
     def get_active_alerts(self):
         """Get active trading alerts"""
-        # This would connect to your main app's alerts
-        # For demo, return sample alerts
-        return [
-            {'symbol': 'AAPL', 'type': 'BUY', 'price': 175.50, 'confidence': 85},
-            {'symbol': 'TSLA', 'type': 'STRONG BUY', 'price': 240.30, 'confidence': 92},
-            {'symbol': 'NVDA', 'type': 'HOLD', 'price': 890.20, 'confidence': 65},
-        ]
-
-class ContentScheduler:
-    """Advanced content scheduling system"""
+        # Try to get from main app's session state
+        try:
+            import streamlit as st
+            if hasattr(st.session_state, 'global_alerts') and st.session_state.global_alerts:
+                alerts = []
+                for alert in st.session_state.global_alerts[-5:]:
+                    alerts.append({
+                        'symbol': alert.symbol,
+                        'type': alert.alert_type,
+                        'price': alert.price,
+                        'confidence': alert.confidence
+                    })
+                return alerts
+        except:
+            pass
+        
+        # Fallback: analyze some stocks
+        try:
+            symbols = ['AAPL', 'TSLA', 'NVDA', 'MSFT']
+            alerts = []
+            
+            for symbol in symbols:
+                stock = yf.Ticker(symbol)
+                info = stock.info
+                price = info.get('regularMarketPrice', 0)
+                change = info.get('regularMarketChangePercent', 0)
+                
+                if price > 0:
+                    if change > 2:
+                        alert_type = "BUY"
+                        confidence = 75
+                    elif change < -2:
+                        alert_type = "SELL"
+                        confidence = 75
+                    else:
+                        continue
+                    
+                    alerts.append({
+                        'symbol': symbol,
+                        'type': alert_type,
+                        'price': price,
+                        'confidence': confidence
+                    })
+            
+            return alerts[:3]
+            
+        except:
+            return []
     
-    def __init__(self):
-        self.schedule = {
-            'market_open': ['market_update', 'top_movers'],
-            'mid_morning': ['sector_analysis', 'trading_alerts'],
-            'lunch': ['market_update', 'educational_tip'],
-            'afternoon': ['top_movers', 'trading_alerts'],
-            'market_close': ['daily_summary', 'preview_tomorrow'],
-            'evening': ['recap_video', 'sentiment_analysis']
+    def get_broadcast_log(self):
+        """Get broadcast log"""
+        return self.broadcast_log
+    
+    def get_status(self):
+        """Get broadcaster status"""
+        return {
+            'is_running': self.is_running,
+            'total_broadcasts': len(self.broadcast_log),
+            'last_broadcast': self.broadcast_log[-1] if self.broadcast_log else None,
+            'moviepy_available': MOVIEPY_AVAILABLE,
+            'matplotlib_available': MATPLOTLIB_AVAILABLE
         }
-        
-    def get_content_for_time(self):
-        """Get content type based on current time"""
-        hour = datetime.now().hour
-        
-        if 9 <= hour < 12:
-            return self.schedule['market_open']
-        elif 12 <= hour < 14:
-            return self.schedule['mid_morning']
-        elif 14 <= hour < 16:
-            return self.schedule['lunch']
-        elif 16 <= hour < 20:
-            return self.schedule['afternoon']
-        elif 20 <= hour < 22:
-            return self.schedule['market_close']
-        else:
-            return self.schedule['evening']
+
+# Simple test function
+if __name__ == "__main__":
+    broadcaster = AutoBroadcaster()
+    print("AutoBroadcaster initialized")
+    print(f"MoviePy available: {MOVIEPY_AVAILABLE}")
+    print(f"Matplotlib available: {MATPLOTLIB_AVAILABLE}")
