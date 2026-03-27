@@ -32,112 +32,70 @@ except ImportError:
     class SocialMediaStreamer:
         def __init__(self): pass
         def connect_twitter(self, *args): return False, "Not available"
+        def connect_youtube(self, *args): return False, "Not available"
         def stream_to_all(self, *args): return {}
 
-# Import auto broadcaster
-from auto_broadcaster import AutoBroadcaster
+# ========== IMPORT AUTO BROADCASTER ==========
+try:
+    from auto_broadcaster import AutoBroadcaster
+    AUTO_BROADCASTER_AVAILABLE = True
+except ImportError:
+    AUTO_BROADCASTER_AVAILABLE = False
+    class AutoBroadcaster:
+        def __init__(self, *args, **kwargs): pass
+        def start_broadcasting(self): return "Auto-broadcaster not available"
+        def stop_broadcasting(self): return "Auto-broadcaster not available"
+        def get_broadcast_log(self): return []
+        def get_status(self): return {'is_running': False}
 
-# Initialize auto broadcaster
-if 'broadcaster' not in st.session_state:
-    st.session_state.broadcaster = AutoBroadcaster(st.session_state.social_streamer)
-
-# Add to sidebar
-with st.sidebar:
-    st.divider()
-    st.markdown("### 🤖 Auto-Broadcaster")
-    
-    col_broad1, col_broad2 = st.columns(2)
-    with col_broad1:
-        if st.button("▶️ START BROADCAST", use_container_width=True):
-            msg = st.session_state.broadcaster.start_broadcasting()
-            st.success(msg)
-            add_stream_message("🤖 Auto-broadcaster started", 'success')
-    
-    with col_broad2:
-        if st.button("⏸️ STOP BROADCAST", use_container_width=True):
-            msg = st.session_state.broadcaster.stop_broadcasting()
-            st.warning(msg)
-            add_stream_message("⏸️ Auto-broadcaster stopped", 'warning')
-    
-    # Broadcast frequency
-    broadcast_frequency = st.select_slider(
-        "Broadcast Frequency",
-        options=["Every minute", "Every 5 min", "Every 15 min", "Every hour", "Custom"],
-        value="Every 15 min"
-    )
-    
-    # Content types
-    st.markdown("### 📱 Content to Broadcast")
-    broadcast_market = st.checkbox("Market Updates", value=True)
-    broadcast_alerts = st.checkbox("Trading Alerts", value=True)
-    broadcast_sectors = st.checkbox("Sector Analysis", value=True)
-    broadcast_videos = st.checkbox("Video Summaries", value=True)
-    
-    # Platform selection
-    st.markdown("### 📡 Broadcast Platforms")
-    col_plat1, col_plat2 = st.columns(2)
-    with col_plat1:
-        broadcast_twitter = st.checkbox("Twitter/X", value=True)
-        broadcast_youtube = st.checkbox("YouTube", value=True)
-    with col_plat2:
-        broadcast_facebook = st.checkbox("Facebook", value=True)
-        broadcast_tiktok = st.checkbox("TikTok", value=True)
 # ==================== GLOBAL EXCHANGE CONFIGURATION ====================
 EXCHANGES = {
     "🇺🇸 New York Stock Exchange": {
         "code": "NYSE",
         "tickers": ["AAPL", "JPM", "WMT", "KO", "BA", "CAT", "IBM", "GE"],
         "indices": "^NYA",
-        "timezone": "US/Eastern",
         "color": "#00ff88"
     },
     "📊 NASDAQ": {
         "code": "NASDAQ",
         "tickers": ["MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "AMD", "NFLX"],
         "indices": "^IXIC",
-        "timezone": "US/Eastern",
         "color": "#88ff00"
     },
     "🇨🇳 Shanghai Stock Exchange": {
         "code": "SSE",
         "tickers": ["BABA", "JD", "PDD", "BIDU", "NIO", "LI", "XPEV", "TCEHY"],
         "indices": "000001.SS",
-        "timezone": "Asia/Shanghai",
         "color": "#ff3366"
     },
     "🇯🇵 Japan Exchange Group": {
         "code": "JPX",
         "tickers": ["TM", "SONY", "MUFG", "TKDK", "HMC", "SAP", "NTT", "SFTBY"],
         "indices": "^N225",
-        "timezone": "Asia/Tokyo",
         "color": "#ffaa00"
     },
     "🇪🇺 Euronext": {
         "code": "EURONEXT",
         "tickers": ["ASML", "AIR", "SAN", "TOTAL", "PHIA", "UCB", "ING", "ABN"],
         "indices": "^FCHI",
-        "timezone": "Europe/Paris",
         "color": "#00aaff"
     },
     "🇭🇰 Hong Kong Exchanges": {
         "code": "HKEX",
         "tickers": ["0700.HK", "9988.HK", "0941.HK", "0005.HK", "1299.HK", "2318.HK", "0823.HK", "0388.HK"],
         "indices": "^HSI",
-        "timezone": "Asia/Hong_Kong",
         "color": "#ff88aa"
     },
     "🇮🇳 National Stock Exchange (India)": {
         "code": "NSE",
         "tickers": ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS", "HINDUNILVR.NS", "SBIN.NS", "BHARTIARTL.NS"],
         "indices": "^NSEI",
-        "timezone": "Asia/Kolkata",
         "color": "#ffaa44"
     },
     "🇬🇧 London Stock Exchange": {
         "code": "LSE",
         "tickers": ["HSBA.L", "AZN.L", "SHEL.L", "ULVR.L", "GSK.L", "BP.L", "DGE.L", "RIO.L"],
         "indices": "^FTSE",
-        "timezone": "Europe/London",
         "color": "#44ffaa"
     }
 }
@@ -148,77 +106,66 @@ SECTORS = {
         "tickers": ["AAPL", "MSFT", "NVDA", "GOOGL", "META", "ADBE", "CRM", "ORCL"],
         "etf": "XLK",
         "description": "Tech stocks driving innovation",
-        "risk": "High",
         "color": "#00ff88"
     },
     "Financials": {
         "tickers": ["JPM", "BAC", "WFC", "C", "GS", "MS", "V", "MA"],
         "etf": "XLF",
         "description": "Banking, insurance, and financial services",
-        "risk": "Medium",
         "color": "#88ff00"
     },
     "Health Care": {
         "tickers": ["JNJ", "UNH", "PFE", "MRK", "ABBV", "TMO", "LLY", "AMGN"],
         "etf": "XLV",
         "description": "Pharmaceuticals, biotech, medical devices",
-        "risk": "Low-Medium",
         "color": "#00aaff"
     },
     "Consumer Discretionary": {
         "tickers": ["AMZN", "TSLA", "HD", "MCD", "NKE", "SBUX", "TGT", "LOW"],
         "etf": "XLY",
         "description": "Retail, automotive, hospitality",
-        "risk": "Medium-High",
         "color": "#ffaa44"
     },
     "Industrials": {
         "tickers": ["BA", "CAT", "GE", "HON", "UPS", "UNP", "LMT", "RTX"],
         "etf": "XLI",
         "description": "Aerospace, defense, transportation",
-        "risk": "Medium",
         "color": "#44ffaa"
     },
     "Communication Services": {
         "tickers": ["META", "GOOGL", "NFLX", "DIS", "TMUS", "VZ", "T", "CMCSA"],
         "etf": "XLC",
         "description": "Telecom, media, internet services",
-        "risk": "Medium",
         "color": "#ff88aa"
     },
     "Consumer Staples": {
         "tickers": ["PG", "KO", "PEP", "WMT", "COST", "PM", "MO", "CL"],
         "etf": "XLP",
         "description": "Essential consumer goods",
-        "risk": "Low",
         "color": "#88ffaa"
     },
     "Energy": {
         "tickers": ["XOM", "CVX", "COP", "EOG", "SLB", "OXY", "PSX", "VLO"],
         "etf": "XLE",
         "description": "Oil, gas, renewable energy",
-        "risk": "High",
         "color": "#ff6644"
     },
     "Materials": {
         "tickers": ["LIN", "APD", "FCX", "NEM", "DOW", "DD", "PPG", "SHW"],
         "etf": "XLB",
         "description": "Chemicals, mining, construction materials",
-        "risk": "Medium",
         "color": "#44ff44"
     },
     "Real Estate": {
         "tickers": ["PLD", "AMT", "CCI", "EQIX", "PSA", "WELL", "SPG", "O"],
         "etf": "XLRE",
         "description": "REITs, property management",
-        "risk": "Low-Medium",
         "color": "#ffaa88"
     },
     "Utilities": {
         "tickers": ["NEE", "DUK", "SO", "D", "AEP", "EXC", "SRE", "PEG"],
         "etf": "XLU",
         "description": "Electric, gas, water utilities",
-        "risk": "Low",
         "color": "#88aaff"
     }
 }
@@ -232,8 +179,7 @@ class ExchangeData:
     index_change: float
     top_gainers: List[Dict]
     top_losers: List[Dict]
-    market_hours: str
-    status: str  # Open, Closed, Pre-market, After-hours
+    status: str
     timestamp: datetime
 
 @dataclass
@@ -244,7 +190,7 @@ class SectorAnalysis:
     top_gain: float
     worst_stock: str
     worst_loss: float
-    signal: str  # Buy, Sell, Hold
+    signal: str
     confidence: int
     reason: str
 
@@ -255,7 +201,7 @@ class GlobalAlert:
     symbol: str
     price: float
     change: float
-    alert_type: str  # STRONG BUY, BUY, SELL, STRONG SELL
+    alert_type: str
     confidence: int
     message: str
     timestamp: datetime
@@ -270,14 +216,11 @@ st.set_page_config(
 
 # ==================== INITIALIZE SESSION STATE ====================
 def init_session_state():
-    if 'exchange_data' not in st.session_state:
-        st.session_state.exchange_data = {}
-    if 'sector_data' not in st.session_state:
-        st.session_state.sector_data = {}
-    if 'global_alerts' not in st.session_state:
-        st.session_state.global_alerts = []
+    """Initialize all session state variables"""
     if 'watchlist' not in st.session_state:
-        st.session_state.watchlist = ['AAPL', 'TSLA', 'NVDA', 'GOOGL', 'MSFT']
+        st.session_state.watchlist = ['AAPL', 'TSLA', 'NVDA', 'GOOGL', 'MSFT', 'AMZN', 'META', 'AMD']
+    if 'alerts' not in st.session_state:
+        st.session_state.alerts = []
     if 'predictions' not in st.session_state:
         st.session_state.predictions = {}
     if 'stream_messages' not in st.session_state:
@@ -286,12 +229,27 @@ def init_session_state():
         st.session_state.last_update = datetime.now()
     if 'auto_stream' not in st.session_state:
         st.session_state.auto_stream = False
+    if 'social_connected' not in st.session_state:
+        st.session_state.social_connected = {'twitter': False, 'youtube': False, 'facebook': False, 'tiktok': False}
+    if 'exchange_data' not in st.session_state:
+        st.session_state.exchange_data = {}
+    if 'sector_data' not in st.session_state:
+        st.session_state.sector_data = {}
+    if 'global_alerts' not in st.session_state:
+        st.session_state.global_alerts = []
+    
+    if SOCIAL_STREAMER_AVAILABLE and 'social_streamer' not in st.session_state:
+        st.session_state.social_streamer = SocialMediaStreamer()
+    
+    if AUTO_BROADCASTER_AVAILABLE and 'broadcaster' not in st.session_state:
+        st.session_state.broadcaster = AutoBroadcaster(st.session_state.get('social_streamer'))
 
 init_session_state()
 
 # ==================== HELPER FUNCTIONS ====================
 
 def add_stream_message(message, type='info'):
+    """Add message to live stream"""
     timestamp = datetime.now().strftime("%H:%M:%S")
     st.session_state.stream_messages.insert(0, {
         'time': timestamp,
@@ -306,7 +264,6 @@ def fetch_exchange_data():
     
     for name, config in EXCHANGES.items():
         try:
-            # Fetch index data
             index = yf.Ticker(config['indices'])
             hist = index.history(period="1d")
             
@@ -315,7 +272,6 @@ def fetch_exchange_data():
                 prev_close = hist['Close'].iloc[0] if len(hist) > 1 else current
                 change = ((current - prev_close) / prev_close * 100) if prev_close else 0
                 
-                # Fetch top stocks data
                 stocks_data = []
                 for ticker in config['tickers']:
                     try:
@@ -334,7 +290,6 @@ def fetch_exchange_data():
                     except:
                         pass
                 
-                # Sort for gainers and losers
                 stocks_data.sort(key=lambda x: x['change'], reverse=True)
                 
                 exchange_data[name] = ExchangeData(
@@ -344,11 +299,9 @@ def fetch_exchange_data():
                     index_change=change,
                     top_gainers=stocks_data[:3],
                     top_losers=stocks_data[-3:],
-                    market_hours="Regular Trading",
                     status="Open" if change != 0 else "Closed",
                     timestamp=datetime.now()
                 )
-                
         except Exception as e:
             add_stream_message(f"Error fetching {name}: {str(e)}", 'error')
     
@@ -360,7 +313,6 @@ def fetch_sector_data():
     
     for name, config in SECTORS.items():
         try:
-            # Get ETF data
             etf = yf.Ticker(config['etf'])
             hist = etf.history(period="1d")
             
@@ -369,7 +321,6 @@ def fetch_sector_data():
                 prev_close = hist['Close'].iloc[0] if len(hist) > 1 else current
                 performance = ((current - prev_close) / prev_close * 100) if prev_close else 0
                 
-                # Analyze individual stocks in sector
                 stocks_analysis = []
                 for ticker in config['tickers']:
                     try:
@@ -378,18 +329,12 @@ def fetch_sector_data():
                         price = info.get('regularMarketPrice', info.get('currentPrice', 0))
                         prev = info.get('regularMarketPreviousClose', price)
                         change = ((price - prev) / prev * 100) if prev else 0
-                        
-                        stocks_analysis.append({
-                            'symbol': ticker,
-                            'price': price,
-                            'change': change
-                        })
+                        stocks_analysis.append({'symbol': ticker, 'price': price, 'change': change})
                     except:
                         pass
                 
                 stocks_analysis.sort(key=lambda x: x['change'], reverse=True)
                 
-                # Generate AI signal
                 signal = "BUY" if performance > 1 else "SELL" if performance < -1 else "HOLD"
                 confidence = min(95, abs(performance) * 20 + 50)
                 
@@ -402,9 +347,8 @@ def fetch_sector_data():
                     worst_loss=stocks_analysis[-1]['change'] if stocks_analysis else 0,
                     signal=signal,
                     confidence=int(confidence),
-                    reason=f"Strong momentum in {name} sector" if performance > 1 else "Weakness detected" if performance < -1 else "Consolidation phase"
+                    reason=f"Strong momentum in {name}" if performance > 1 else "Weakness detected" if performance < -1 else "Consolidation phase"
                 )
-                
         except Exception as e:
             add_stream_message(f"Error analyzing {name}: {str(e)}", 'error')
     
@@ -419,7 +363,9 @@ def analyze_stock_for_alert(symbol, exchange_name, sector_name):
         prev = info.get('regularMarketPreviousClose', price)
         change = ((price - prev) / prev * 100) if prev else 0
         
-        # Technical analysis
+        if price == 0:
+            return None
+        
         hist = stock.history(period="1mo")
         if len(hist) > 14:
             delta = hist['Close'].diff()
@@ -431,11 +377,10 @@ def analyze_stock_for_alert(symbol, exchange_name, sector_name):
         else:
             current_rsi = 50
         
-        # Generate signal
         if change > 3 and current_rsi < 70:
             alert_type = "STRONG BUY"
             confidence = min(95, 70 + change)
-            message = f"Strong bullish momentum with {change:.1f}% gain and RSI at {current_rsi:.0f}"
+            message = f"Strong bullish momentum with {change:.1f}% gain"
         elif change > 1 and current_rsi < 80:
             alert_type = "BUY"
             confidence = min(85, 60 + change)
@@ -449,9 +394,7 @@ def analyze_stock_for_alert(symbol, exchange_name, sector_name):
             confidence = min(85, 60 + abs(change))
             message = f"Negative momentum, down {change:.1f}%"
         else:
-            alert_type = "HOLD"
-            confidence = 50
-            message = "Consolidation phase, wait for clearer signals"
+            return None
         
         return GlobalAlert(
             exchange=exchange_name,
@@ -464,8 +407,7 @@ def analyze_stock_for_alert(symbol, exchange_name, sector_name):
             message=message,
             timestamp=datetime.now()
         )
-        
-    except Exception as e:
+    except:
         return None
 
 # ==================== CUSTOM CSS ====================
@@ -475,6 +417,15 @@ st.markdown("""
         0% { opacity: 1; }
         50% { opacity: 0.5; }
         100% { opacity: 1; }
+    }
+    
+    .live-badge {
+        background: linear-gradient(90deg, #ff3366, #ff0066);
+        color: white;
+        padding: 5px 15px;
+        border-radius: 20px;
+        display: inline-block;
+        animation: pulse 2s infinite;
     }
     
     .exchange-card {
@@ -495,13 +446,7 @@ st.markdown("""
         border-radius: 10px;
         padding: 15px;
         margin: 5px;
-        cursor: pointer;
         transition: all 0.3s;
-    }
-    
-    .sector-card:hover {
-        transform: scale(1.02);
-        box-shadow: 0 5px 15px rgba(0,255,136,0.2);
     }
     
     .alert-buy {
@@ -522,28 +467,8 @@ st.markdown("""
         animation: pulse 2s infinite;
     }
     
-    .live-badge {
-        background: linear-gradient(90deg, #ff3366, #ff0066);
-        color: white;
-        padding: 5px 15px;
-        border-radius: 20px;
-        display: inline-block;
-        animation: pulse 2s infinite;
-    }
-    
-    .metric-value {
-        font-size: 24px;
-        font-weight: bold;
-        color: #00ff88;
-    }
-    
-    .positive {
-        color: #00ff88;
-    }
-    
-    .negative {
-        color: #ff4444;
-    }
+    .positive { color: #00ff88; }
+    .negative { color: #ff4444; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -571,15 +496,14 @@ with col_refresh2:
             st.session_state.exchange_data = fetch_exchange_data()
             st.session_state.sector_data = fetch_sector_data()
             
-            # Generate alerts
             st.session_state.global_alerts = []
             for exchange_name in st.session_state.exchange_data.keys():
-                for sector_name, sector_data in st.session_state.sector_data.items():
+                for sector_name in SECTORS.keys():
                     for ticker in SECTORS[sector_name]['tickers'][:3]:
                         alert = analyze_stock_for_alert(ticker, exchange_name, sector_name)
-                        if alert and alert.alert_type != "HOLD":
+                        if alert:
                             st.session_state.global_alerts.append(alert)
-                            add_stream_message(f"🌍 ALERT: {alert.alert_type} {alert.symbol} on {exchange_name} - {alert.message}", 'alert')
+                            add_stream_message(f"🌍 ALERT: {alert.alert_type} {alert.symbol}", 'alert')
             
             st.session_state.last_update = datetime.now()
         st.success("Data updated!")
@@ -589,25 +513,16 @@ st.caption(f"Last updated: {st.session_state.last_update.strftime('%Y-%m-%d %H:%
 # ==================== GLOBAL EXCHANGES SECTION ====================
 st.markdown("## 🌍 Global Market Exchanges")
 
-# Display exchanges in a 4x2 grid
 exchange_cols = st.columns(4)
-
 for idx, (exchange_name, exchange_data) in enumerate(st.session_state.exchange_data.items()):
-    col = exchange_cols[idx % 4]
-    
-    with col:
+    with exchange_cols[idx % 4]:
         color = EXCHANGES[exchange_name]['color']
-        status_color = "#00ff88" if "Open" in str(exchange_data.status) else "#ff4444"
-        
         st.markdown(f"""
         <div class="exchange-card" style="border-left-color: {color};">
             <h3>{exchange_name}</h3>
             <div style="font-size: 24px; font-weight: bold;">{exchange_data.index_value:.2f}</div>
             <div style="color: {'#00ff88' if exchange_data.index_change >= 0 else '#ff4444'};">
                 {exchange_data.index_change:+.2f}%
-            </div>
-            <div style="margin-top: 10px;">
-                <small>Status: <span style="color: {status_color};">{exchange_data.status}</span></small>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -616,7 +531,6 @@ for idx, (exchange_name, exchange_data) in enumerate(st.session_state.exchange_d
             st.markdown("**Top Gainers:**")
             for stock in exchange_data.top_gainers:
                 st.markdown(f"- {stock['symbol']}: ${stock['price']:.2f} (+{stock['change']:.1f}%)")
-            
             st.markdown("**Top Losers:**")
             for stock in exchange_data.top_losers:
                 st.markdown(f"- {stock['symbol']}: ${stock['price']:.2f} ({stock['change']:.1f}%)")
@@ -624,59 +538,32 @@ for idx, (exchange_name, exchange_data) in enumerate(st.session_state.exchange_d
 # ==================== SECTORS SECTION ====================
 st.markdown("## 📈 Sector Analysis")
 
-# Create sector grid (4 rows of 3 columns)
 sector_rows = [st.columns(3) for _ in range(4)]
-
 for idx, (sector_name, sector_data) in enumerate(st.session_state.sector_data.items()):
     row = idx // 3
     col = idx % 3
-    
     with sector_rows[row][col]:
         color = SECTORS[sector_name]['color']
         signal_class = "positive" if sector_data.signal == "BUY" else "negative" if sector_data.signal == "SELL" else ""
-        
         st.markdown(f"""
         <div class="sector-card" style="border-left: 3px solid {color};">
             <h4>{sector_name}</h4>
             <div style="font-size: 20px; font-weight: bold;">{sector_data.performance:+.1f}%</div>
             <div class="{signal_class}">{sector_data.signal} - {sector_data.confidence}%</div>
-            <small>Top: {sector_data.top_stock} (+{sector_data.top_gain:.1f}%)</small><br>
-            <small>Worst: {sector_data.worst_stock} ({sector_data.worst_loss:.1f}%)</small>
-            <div style="font-size: 10px; color: #888; margin-top: 5px;">{sector_data.reason}</div>
+            <small>Top: {sector_data.top_stock} (+{sector_data.top_gain:.1f}%)</small>
         </div>
         """, unsafe_allow_html=True)
 
 # ==================== GLOBAL ALERTS SECTION ====================
 st.markdown("## 🚨 Global Trading Alerts")
 
-# Filter alerts
-col_filter1, col_filter2, col_filter3 = st.columns(3)
-with col_filter1:
-    filter_type = st.selectbox("Alert Type", ["ALL", "BUY", "STRONG BUY", "SELL", "STRONG SELL"])
-with col_filter2:
-    filter_exchange = st.selectbox("Exchange", ["ALL"] + list(EXCHANGES.keys()))
-with col_filter3:
-    filter_sector = st.selectbox("Sector", ["ALL"] + list(SECTORS.keys()))
-
-# Display alerts
-alerts_display = st.session_state.global_alerts[-20:]
-
-if filter_type != "ALL":
-    alerts_display = [a for a in alerts_display if filter_type in a.alert_type]
-if filter_exchange != "ALL":
-    alerts_display = [a for a in alerts_display if a.exchange == filter_exchange]
-if filter_sector != "ALL":
-    alerts_display = [a for a in alerts_display if a.sector == filter_sector]
-
-if alerts_display:
-    for alert in alerts_display:
+if st.session_state.global_alerts:
+    for alert in st.session_state.global_alerts[-10:]:
         alert_class = "alert-buy" if "BUY" in alert.alert_type else "alert-sell"
         st.markdown(f"""
         <div class="{alert_class}">
             <div style="display: flex; justify-content: space-between;">
-                <div>
-                    <strong>{alert.alert_type}</strong> {alert.symbol} ({alert.sector})
-                </div>
+                <div><strong>{alert.alert_type}</strong> {alert.symbol} ({alert.sector})</div>
                 <div>{alert.timestamp.strftime('%H:%M:%S')}</div>
             </div>
             <div style="font-size: 20px;">${alert.price:.2f} ({alert.change:+.1f}%)</div>
@@ -686,47 +573,6 @@ if alerts_display:
         """, unsafe_allow_html=True)
 else:
     st.info("No active alerts at this moment")
-
-# ==================== TOP PERFORMERS DASHBOARD ====================
-st.markdown("## 🏆 Top Performers")
-
-col_perf1, col_perf2 = st.columns(2)
-
-with col_perf1:
-    st.markdown("### 📈 Top Gainers Across All Exchanges")
-    all_gainers = []
-    for exchange_name, exchange_data in st.session_state.exchange_data.items():
-        for stock in exchange_data.top_gainers:
-            all_gainers.append({
-                'Exchange': exchange_name,
-                'Symbol': stock['symbol'],
-                'Price': stock['price'],
-                'Change %': stock['change'],
-                'Volume': stock['volume']
-            })
-    
-    if all_gainers:
-        all_gainers.sort(key=lambda x: x['Change %'], reverse=True)
-        gainers_df = pd.DataFrame(all_gainers[:10])
-        st.dataframe(gainers_df, use_container_width=True)
-
-with col_perf2:
-    st.markdown("### 📉 Top Losers Across All Exchanges")
-    all_losers = []
-    for exchange_name, exchange_data in st.session_state.exchange_data.items():
-        for stock in exchange_data.top_losers:
-            all_losers.append({
-                'Exchange': exchange_name,
-                'Symbol': stock['symbol'],
-                'Price': stock['price'],
-                'Change %': stock['change'],
-                'Volume': stock['volume']
-            })
-    
-    if all_losers:
-        all_losers.sort(key=lambda x: x['Change %'])
-        losers_df = pd.DataFrame(all_losers[:10])
-        st.dataframe(losers_df, use_container_width=True)
 
 # ==================== LIVE STREAM ====================
 with st.expander("📡 Live Data Stream"):
@@ -744,9 +590,9 @@ with st.sidebar:
     
     # Live Stream Control
     st.markdown("### 📡 Live Stream")
-    if st.button("▶️ START LIVE STREAM", use_container_width=True):
+    if st.button("▶️ START STREAM", use_container_width=True):
         st.session_state.auto_stream = True
-        add_stream_message("🎥 Live stream started! Global markets monitoring active", 'success')
+        add_stream_message("🎥 Live stream started!", 'success')
     
     if st.button("⏸️ STOP STREAM", use_container_width=True):
         st.session_state.auto_stream = False
@@ -756,39 +602,52 @@ with st.sidebar:
     
     # Watchlist
     st.markdown("### 📊 My Watchlist")
-    watchlist_symbols = st.text_input("Add symbols (comma separated)", placeholder="AAPL,TSLA,NVDA")
-    if watchlist_symbols:
-        st.session_state.watchlist = [s.strip() for s in watchlist_symbols.split(',')]
-    
-    for symbol in st.session_state.watchlist:
+    watchlist_input = st.text_input("Add symbols (comma separated)", placeholder="AAPL,TSLA,NVDA")
+    if watchlist_input:
+        st.session_state.watchlist = [s.strip() for s in watchlist_input.split(',')]
+    for symbol in st.session_state.watchlist[:5]:
         st.write(f"- {symbol}")
     
     st.divider()
     
-    # Social Media
-    st.markdown("### 🌐 Social Media")
-    if st.button("📢 SHARE ALERTS", use_container_width=True):
-        if st.session_state.global_alerts:
-            latest = st.session_state.global_alerts[-1]
-            message = f"🌍 GLOBAL ALERT: {latest.alert_type} {latest.symbol} on {latest.exchange}\n${latest.price:.2f} ({latest.change:+.1f}%)\nConfidence: {latest.confidence}%\n#Stocks #Trading #AI #GlobalMarkets"
-            st.success(f"Alert ready: {message[:100]}...")
+    # Auto-Broadcaster
+    st.markdown("### 🤖 Auto-Broadcaster")
+    if AUTO_BROADCASTER_AVAILABLE:
+        col_b1, col_b2 = st.columns(2)
+        with col_b1:
+            if st.button("▶️ START", use_container_width=True):
+                if 'broadcaster' in st.session_state:
+                    msg = st.session_state.broadcaster.start_broadcasting()
+                    st.success(msg)
+        with col_b2:
+            if st.button("⏸️ STOP", use_container_width=True):
+                if 'broadcaster' in st.session_state:
+                    msg = st.session_state.broadcaster.stop_broadcasting()
+                    st.warning(msg)
+        
+        if 'broadcaster' in st.session_state:
+            status = st.session_state.broadcaster.get_status()
+            if status.get('is_running', False):
+                st.success("🟢 Broadcasting Active")
+            else:
+                st.warning("⚪ Broadcasting Inactive")
+    else:
+        st.warning("⚠️ Auto-broadcaster not available")
     
     st.divider()
     
     # Stats
     st.markdown("### 📊 Dashboard Stats")
     st.metric("Active Alerts", len(st.session_state.global_alerts))
-    st.metric("Exchanges Monitored", len(st.session_state.exchange_data))
-    st.metric("Sectors Tracked", len(st.session_state.sector_data))
-    st.metric("AI Confidence", f"{np.mean([a.confidence for a in st.session_state.global_alerts]):.0f}%" if st.session_state.global_alerts else "N/A")
+    st.metric("Exchanges", len(st.session_state.exchange_data))
+    st.metric("Sectors", len(st.session_state.sector_data))
 
-# ==================== AUTO-STREAM LOGIC ====================
+# ==================== AUTO-STREAM LOOP ====================
 if st.session_state.auto_stream:
-    # Auto-refresh every 30 seconds
     time.sleep(30)
     st.rerun()
 
-# Footer
+# ==================== FOOTER ====================
 st.divider()
 st.markdown("""
 <div style="text-align: center; color: #888; padding: 20px;">
@@ -798,7 +657,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Initial data load
+# ==================== INITIAL DATA LOAD ====================
 if not st.session_state.exchange_data:
     with st.spinner("Loading global market data..."):
         st.session_state.exchange_data = fetch_exchange_data()
