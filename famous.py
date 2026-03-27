@@ -50,64 +50,56 @@ EXCHANGES = {
         "indices": "^NYA",
         "color": "#00ff88",
         "timezone": "America/New_York",
-        "currency": "USD",
-        "city": "New York"
+        "currency": "USD"
     },
     "📊 NASDAQ": {
         "tickers": ["MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA"],
         "indices": "^IXIC",
         "color": "#88ff00",
         "timezone": "America/New_York",
-        "currency": "USD",
-        "city": "New York"
+        "currency": "USD"
     },
     "🇨🇳 Shanghai": {
         "tickers": ["BABA", "JD", "PDD", "BIDU", "NIO"],
         "indices": "000001.SS",
         "color": "#ff3366",
         "timezone": "Asia/Shanghai",
-        "currency": "CNY",
-        "city": "Shanghai"
+        "currency": "CNY"
     },
     "🇯🇵 Japan": {
         "tickers": ["TM", "SONY", "MUFG", "TKDK", "HMC"],
         "indices": "^N225",
         "color": "#ffaa00",
         "timezone": "Asia/Tokyo",
-        "currency": "JPY",
-        "city": "Tokyo"
+        "currency": "JPY"
     },
     "🇪🇺 Euronext": {
         "tickers": ["ASML", "AIR", "SAN", "TOTAL", "PHIA"],
         "indices": "^FCHI",
         "color": "#00aaff",
         "timezone": "Europe/Paris",
-        "currency": "EUR",
-        "city": "Paris"
+        "currency": "EUR"
     },
     "🇭🇰 Hong Kong": {
         "tickers": ["0700.HK", "9988.HK", "0941.HK", "0005.HK"],
         "indices": "^HSI",
         "color": "#ff88aa",
         "timezone": "Asia/Hong_Kong",
-        "currency": "HKD",
-        "city": "Hong Kong"
+        "currency": "HKD"
     },
     "🇮🇳 India NSE": {
         "tickers": ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS"],
         "indices": "^NSEI",
         "color": "#ffaa44",
         "timezone": "Asia/Kolkata",
-        "currency": "INR",
-        "city": "Mumbai"
+        "currency": "INR"
     },
     "🇬🇧 London": {
         "tickers": ["HSBA.L", "AZN.L", "SHEL.L", "ULVR.L"],
         "indices": "^FTSE",
         "color": "#44ffaa",
         "timezone": "Europe/London",
-        "currency": "GBP",
-        "city": "London"
+        "currency": "GBP"
     }
 }
 
@@ -165,10 +157,9 @@ class AIPrediction:
 
 # ==================== PAGE CONFIG ====================
 st.set_page_config(
-    page_title="INVESTIFY - AI Trading Dashboard",
+    page_title="AI Trading Dashboard",
     page_icon="📈",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
 # ==================== INITIALIZE SESSION STATE ====================
@@ -196,7 +187,6 @@ if 'broadcast_active' not in st.session_state:
 def get_exchange_time(timezone_str):
     """Get current time for a timezone"""
     try:
-        from datetime import datetime
         import pytz
         tz = pytz.timezone(timezone_str)
         return datetime.now(tz).strftime("%H:%M")
@@ -315,104 +305,57 @@ def update_all_data():
         st.session_state.last_update = datetime.now()
     return True
 
-# ==================== CUSTOM CSS - INVESTIFY STYLE ====================
+# ==================== ENHANCED CSS - Glass Morphism Effects ====================
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-    
-    * {
-        font-family: 'Inter', sans-serif;
+    /* Main background with gradient */
+    .stApp {
+        background: linear-gradient(135deg, #0a0a2a 0%, #0f0f2a 50%, #1a1a3a 100%);
     }
     
-    .main-header {
-        background: linear-gradient(135deg, #0a0a2a 0%, #1a1a3a 100%);
-        padding: 2rem 3rem;
-        border-radius: 20px;
-        margin-bottom: 2rem;
-        border-bottom: 3px solid #00ff88;
+    /* Glass morphism effect for all cards */
+    .exchange-card, .market-card, .sector-item, .alert-card, .stat-card {
+        background: rgba(26, 26, 46, 0.7) !important;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(0, 255, 136, 0.2);
+        border-radius: 16px;
+        transition: all 0.3s ease;
     }
     
-    .logo {
-        font-size: 28px;
-        font-weight: 800;
-        background: linear-gradient(135deg, #00ff88, #00cc66);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        display: inline-block;
+    /* Animated border on hover */
+    .exchange-card:hover, .market-card:hover, .sector-item:hover, .alert-card:hover, .stat-card:hover {
+        border-image: linear-gradient(45deg, #00ff88, #00cc66) 1;
+        border: 1px solid transparent;
+        background: rgba(0, 255, 136, 0.1) !important;
+        transform: translateY(-3px);
+        box-shadow: 0 10px 30px rgba(0, 255, 136, 0.2);
     }
     
-    .nav-links {
-        display: flex;
-        gap: 2rem;
-        margin-top: 1rem;
-    }
-    
-    .nav-link {
-        color: #888;
-        text-decoration: none;
-        font-weight: 500;
-        transition: color 0.3s;
-        cursor: pointer;
-    }
-    
-    .nav-link:hover {
-        color: #00ff88;
-    }
-    
-    .hero-section {
-        background: linear-gradient(135deg, #00ff8822, #00cc6622);
-        border-radius: 20px;
-        padding: 3rem;
-        margin-bottom: 2rem;
-        text-align: center;
-        border: 1px solid #00ff88;
-    }
-    
-    .hero-title {
-        font-size: 48px;
-        font-weight: 800;
-        background: linear-gradient(135deg, #ffffff, #00ff88);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 1rem;
-    }
-    
-    .hero-subtitle {
-        color: #aaa;
-        font-size: 18px;
-        margin-bottom: 2rem;
-    }
-    
-    .btn-primary {
-        background: linear-gradient(135deg, #00ff88, #00cc66);
-        color: #000;
-        padding: 12px 30px;
-        border-radius: 30px;
-        font-weight: 600;
-        text-decoration: none;
-        display: inline-block;
-        transition: transform 0.3s;
-        border: none;
-        cursor: pointer;
-    }
-    
+    /* Global timezone bar styling */
     .timezone-bar {
-        background: #0a0a1a;
-        padding: 12px 20px;
+        background: rgba(10, 10, 26, 0.8);
+        backdrop-filter: blur(10px);
         border-radius: 15px;
+        padding: 12px 20px;
         margin-bottom: 20px;
         display: flex;
         justify-content: space-around;
         flex-wrap: wrap;
         gap: 15px;
-        border: 1px solid #2a2a4a;
+        border: 1px solid rgba(0, 255, 136, 0.3);
     }
     
     .timezone-card {
         text-align: center;
         padding: 8px 15px;
-        background: #1a1a2a;
+        background: rgba(26, 26, 46, 0.6);
         border-radius: 12px;
+        transition: all 0.3s;
+    }
+    
+    .timezone-card:hover {
+        transform: translateY(-2px);
+        background: rgba(0, 255, 136, 0.1);
     }
     
     .timezone-city {
@@ -429,23 +372,93 @@ st.markdown("""
     
     .timezone-status {
         font-size: 10px;
-        color: #888;
     }
     
-    .market-card {
-        background: linear-gradient(135deg, #1a1a2a, #0f0f1f);
-        border-radius: 16px;
-        padding: 20px;
+    /* Live ticker styling */
+    .ticker-bar {
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(5px);
+        border: 1px solid rgba(0, 255, 136, 0.3);
+        border-radius: 30px;
+        padding: 8px 15px;
+        overflow: hidden;
+        white-space: nowrap;
+        margin: 15px 0;
+    }
+    
+    .ticker-content {
+        display: inline-block;
+        animation: ticker 40s linear infinite;
+        white-space: nowrap;
+    }
+    
+    @keyframes ticker {
+        0% { transform: translateX(100%); }
+        100% { transform: translateX(-100%); }
+    }
+    
+    /* Button styling */
+    .stButton > button {
+        background: linear-gradient(135deg, #00ff88, #00cc66);
+        color: #000;
+        font-weight: 600;
+        border: none;
+        border-radius: 25px;
         transition: all 0.3s;
-        border: 1px solid #2a2a4a;
-        margin-bottom: 15px;
     }
     
-    .market-card:hover {
-        transform: translateY(-5px);
-        border-color: #00ff88;
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 20px rgba(0, 255, 136, 0.3);
     }
     
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, rgba(10, 10, 42, 0.95), rgba(5, 5, 20, 0.95));
+        backdrop-filter: blur(10px);
+        border-right: 1px solid rgba(0, 255, 136, 0.2);
+    }
+    
+    /* Metric value styling */
+    [data-testid="stMetricValue"] {
+        color: #00ff88;
+    }
+    
+    /* Alert animation */
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+    
+    .alert-card {
+        animation: pulse 2s infinite;
+    }
+    
+    /* Positive/Negative colors */
+    .positive { color: #00ff88; }
+    .negative { color: #ff4444; }
+    
+    /* Header styling */
+    .main-header {
+        background: linear-gradient(135deg, rgba(10, 10, 42, 0.9), rgba(26, 26, 58, 0.9));
+        backdrop-filter: blur(10px);
+        padding: 1.5rem 2rem;
+        border-radius: 20px;
+        margin-bottom: 2rem;
+        border-bottom: 2px solid #00ff88;
+    }
+    
+    /* Live badge */
+    .live-badge {
+        background: linear-gradient(90deg, #ff3366, #ff0066);
+        color: white;
+        padding: 5px 15px;
+        border-radius: 20px;
+        display: inline-block;
+        animation: pulse 2s infinite;
+    }
+    
+    /* Card inner styling */
     .market-name {
         font-size: 16px;
         font-weight: 600;
@@ -464,29 +477,6 @@ st.markdown("""
         font-weight: 500;
     }
     
-    .positive { color: #00ff88; }
-    .negative { color: #ff4444; }
-    
-    .sector-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 15px;
-        margin-top: 20px;
-    }
-    
-    .sector-item {
-        background: #1a1a2a;
-        border-radius: 12px;
-        padding: 15px;
-        text-align: center;
-        transition: all 0.3s;
-    }
-    
-    .sector-item:hover {
-        transform: translateY(-3px);
-        background: #2a2a3a;
-    }
-    
     .sector-icon {
         font-size: 28px;
         margin-bottom: 8px;
@@ -502,24 +492,6 @@ st.markdown("""
         font-weight: 700;
     }
     
-    .alert-card {
-        background: linear-gradient(135deg, #1a1a2a, #0f0f1f);
-        border-radius: 12px;
-        padding: 15px;
-        margin-bottom: 10px;
-        border-left: 4px solid;
-    }
-    
-    .alert-buy { border-left-color: #00ff88; }
-    .alert-sell { border-left-color: #ff4444; }
-    
-    .stat-card {
-        background: linear-gradient(135deg, #1a1a2a, #0f0f1f);
-        border-radius: 16px;
-        padding: 20px;
-        text-align: center;
-    }
-    
     .stat-value {
         font-size: 32px;
         font-weight: 700;
@@ -532,25 +504,13 @@ st.markdown("""
         margin-top: 5px;
     }
     
-    .ticker-bar {
-        background: #0a0a1a;
-        padding: 10px;
-        border-radius: 12px;
-        overflow: hidden;
-        white-space: nowrap;
-        margin: 15px 0;
-        border: 1px solid #2a2a4a;
+    /* Alert card types */
+    .alert-buy {
+        border-left: 4px solid #00ff88;
     }
     
-    .ticker-content {
-        display: inline-block;
-        animation: ticker 40s linear infinite;
-        white-space: nowrap;
-    }
-    
-    @keyframes ticker {
-        0% { transform: translateX(100%); }
-        100% { transform: translateX(-100%); }
+    .alert-sell {
+        border-left: 4px solid #ff4444;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -560,40 +520,25 @@ st.markdown("""
 <div class="main-header">
     <div style="display: flex; justify-content: space-between; align-items: center;">
         <div>
-            <span class="logo">INVESTIFY</span>
+            <h1 style="margin: 0; background: linear-gradient(135deg, #00ff88, #00cc66); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">AI Trading Dashboard</h1>
+            <p style="color: #888; margin: 0;">Real-time AI Analysis | 94% Accuracy | Auto-Broadcast</p>
         </div>
-        <div class="nav-links">
-            <span class="nav-link">Home</span>
-            <span class="nav-link">Markets</span>
-            <span class="nav-link">Portfolio</span>
-            <span class="nav-link">News</span>
-            <span class="nav-link">About</span>
-            <span class="nav-link">Contact</span>
+        <div>
+            <span class="live-badge">🔴 LIVE STREAMING</span>
         </div>
     </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ==================== HERO SECTION ====================
-st.markdown("""
-<div class="hero-section">
-    <div class="hero-title">GLOBAL MARKETS AT YOUR FINGERTIPS</div>
-    <div class="hero-subtitle">AI-powered insights | Real-time data | Smart predictions</div>
-    <button class="btn-primary">Learn More →</button>
 </div>
 """, unsafe_allow_html=True)
 
 # ==================== GLOBAL TIMEZONE BAR ====================
 st.markdown("### 🌍 Global Market Hours")
 
-# Create timezone bar using columns
 tz_cols = st.columns(len(EXCHANGES))
 
 for idx, (name, config) in enumerate(EXCHANGES.items()):
     with tz_cols[idx]:
         current_time = get_exchange_time(config['timezone'])
         try:
-            from datetime import datetime
             import pytz
             tz = pytz.timezone(config['timezone'])
             local_time = datetime.now(tz)
@@ -658,7 +603,7 @@ with c3:
         st.button("📢 Broadcast", disabled=True, use_container_width=True)
 
 with c4:
-    st.markdown(f"<div style='text-align: center; padding: 8px; background: #1a1a2a; border-radius: 30px;'><small>Updated: {st.session_state.last_update.strftime('%H:%M:%S')}</small></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='text-align: center; padding: 8px; background: rgba(26, 26, 46, 0.7); border-radius: 30px;'><small>Updated: {st.session_state.last_update.strftime('%H:%M:%S')}</small></div>", unsafe_allow_html=True)
 
 # ==================== STATS ROW ====================
 stat_cols = st.columns(4)
@@ -705,7 +650,7 @@ with left_col:
         with market_cols[idx % 2]:
             change_class = "positive" if data.index_change >= 0 else "negative"
             st.markdown(f"""
-            <div class="market-card">
+            <div class="exchange-card">
                 <div class="market-name">{name}</div>
                 <div class="market-value">{data.index_value:.2f}</div>
                 <div class="market-change {change_class}">{data.index_change:+.2f}%</div>
@@ -886,8 +831,8 @@ if not st.session_state.exchange_data:
 st.divider()
 st.markdown("""
 <div style="text-align: center; color: #888; padding: 20px;">
-    INVESTIFY - AI-Powered Trading Intelligence<br>
-    Real-time data across 8 global exchanges | 94% prediction accuracy<br>
+    AI Trading Dashboard - Real-time Market Intelligence<br>
+    Data across 8 global exchanges | AI-powered predictions | Auto-broadcast to all platforms<br>
     <small>⚠️ Not financial advice. Always do your own research.</small>
 </div>
 """, unsafe_allow_html=True)
