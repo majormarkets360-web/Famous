@@ -794,4 +794,4 @@ with tab3:
 
 # ==================== TAB 4: AI PREDICTIONS ====================
 with tab4:
-    st.markdown("## 🤖 AI
+    st.markdown("## 🤖 AI)
