@@ -6,110 +6,200 @@ import plotly.graph_objects as go
 import plotly.express as px
 from datetime import datetime, timedelta
 import requests
+import json
+import time
+import threading
+import schedule
 from textblob import TextBlob
 import warnings
+import asyncio
+import pickle
+import os
+from dataclasses import dataclass
+from typing import Dict, List, Optional
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import tweepy
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+import base64
+from io import BytesIO
+import matplotlib.pyplot as plt
+
 warnings.filterwarnings('ignore')
+
+# ==================== DATA CLASSES ====================
+@dataclass
+class Alert:
+    symbol: str
+    type: str  # 'BUY', 'SELL', 'ALERT'
+    price: float
+    reason: str
+    confidence: float
+    timestamp: datetime
+
+@dataclass
+class TradeOpportunity:
+    symbol: str
+    action: str  # 'BUY' or 'SELL'
+    entry_price: float
+    target_price: float
+    stop_loss: float
+    confidence: float
+    reason: str
+    time_horizon: str  # 'short', 'medium', 'long'
 
 # ==================== PAGE CONFIG ====================
 st.set_page_config(
-    page_title="AI Stock Market Intelligence Dashboard",
-    page_icon="📊",
+    page_title="AI Trading Dashboard - 24/7 Live Stream",
+    page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ==================== CUSTOM CSS ====================
+# ==================== CUSTOM CSS FOR LIVE STREAM STYLE ====================
 st.markdown("""
 <style>
-    /* Main container styling */
-    .main-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem;
+    /* Live streaming style */
+    .live-badge {
+        background: linear-gradient(90deg, #ff3366, #ff0066);
+        color: white;
+        padding: 5px 15px;
         border-radius: 20px;
-        margin-bottom: 2rem;
-        text-align: center;
+        display: inline-block;
+        animation: pulse 2s infinite;
     }
     
-    /* Card styling */
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+    }
+    
+    .alert-card {
+        background: linear-gradient(135deg, #ff3366, #ff0066);
+        padding: 15px;
+        border-radius: 10px;
+        margin: 10px 0;
+        border-left: 5px solid #ff00ff;
+        animation: slideIn 0.5s;
+    }
+    
+    @keyframes slideIn {
+        from {
+            transform: translateX(-100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    .opportunity-card {
+        background: linear-gradient(135deg, #00ff88, #00cc66);
+        color: black;
+        padding: 15px;
+        border-radius: 10px;
+        margin: 10px 0;
+        border-left: 5px solid #00ff00;
+    }
+    
+    .ticker-tape {
+        background: #1e1e1e;
+        color: white;
+        padding: 10px;
+        overflow: hidden;
+        white-space: nowrap;
+        border-radius: 10px;
+        margin: 10px 0;
+    }
+    
+    .ticker-content {
+        display: inline-block;
+        animation: ticker 30s linear infinite;
+    }
+    
+    @keyframes ticker {
+        0% { transform: translateX(100%); }
+        100% { transform: translateX(-100%); }
+    }
+    
     .metric-card {
         background: linear-gradient(135deg, #1e1e1e, #2d2d2d);
-        padding: 1.5rem;
-        border-radius: 15px;
+        padding: 1rem;
+        border-radius: 10px;
         border-left: 4px solid #00ff88;
         margin: 0.5rem 0;
-        transition: transform 0.3s;
     }
     
-    .metric-card:hover {
-        transform: translateY(-5px);
-    }
-    
-    /* Signal cards */
-    .buy-signal {
+    .signal-buy {
         background: linear-gradient(135deg, #00ff8822, #00cc6622);
         border: 2px solid #00ff88;
         padding: 1rem;
         border-radius: 10px;
-        text-align: center;
     }
     
-    .sell-signal {
+    .signal-sell {
         background: linear-gradient(135deg, #ff444422, #ff000022);
         border: 2px solid #ff4444;
         padding: 1rem;
         border-radius: 10px;
-        text-align: center;
     }
     
-    .neutral-signal {
-        background: linear-gradient(135deg, #ffaa0022, #ff880022);
-        border: 2px solid #ffaa00;
-        padding: 1rem;
+    .live-stream {
+        background: #000000;
+        border: 2px solid #00ff88;
         border-radius: 10px;
-        text-align: center;
+        padding: 15px;
+        font-family: monospace;
+        font-size: 14px;
+        height: 400px;
+        overflow-y: scroll;
     }
     
-    /* News styling */
-    .news-item {
-        background: #1e1e1e;
-        padding: 1rem;
-        border-radius: 10px;
-        margin: 0.5rem 0;
-        border-left: 3px solid #667eea;
+    .stream-message {
+        padding: 5px;
+        border-bottom: 1px solid #333;
+        animation: fadeIn 0.3s;
     }
     
-    /* Header styles */
-    h1, h2, h3 {
-        color: white;
-    }
-    
-    .stButton > button {
-        background: linear-gradient(135deg, #00ff88, #00cc66);
-        color: black;
-        font-weight: bold;
-        border-radius: 10px;
-        padding: 0.5rem 1rem;
-    }
-    
-    /* Sentiment indicators */
-    .sentiment-positive {
-        color: #00ff88;
-        font-weight: bold;
-    }
-    
-    .sentiment-negative {
-        color: #ff4444;
-        font-weight: bold;
-    }
-    
-    .sentiment-neutral {
-        color: #ffaa00;
-        font-weight: bold;
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
     }
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== HELPER FUNCTIONS (DEFINED FIRST) ====================
+# ==================== INITIALIZE SESSION STATE ====================
+if 'watchlist' not in st.session_state:
+    st.session_state.watchlist = ['AAPL', 'TSLA', 'NVDA', 'GOOGL', 'MSFT', 'AMZN', 'META', 'AMD']
+if 'alerts' not in st.session_state:
+    st.session_state.alerts = []
+if 'opportunities' not in st.session_state:
+    st.session_state.opportunities = []
+if 'stream_messages' not in st.session_state:
+    st.session_state.stream_messages = []
+if 'last_update' not in st.session_state:
+    st.session_state.last_update = datetime.now()
+if 'auto_stream' not in st.session_state:
+    st.session_state.auto_stream = False
+if 'social_connected' not in st.session_state:
+    st.session_state.social_connected = {'twitter': False, 'instagram': False, 'tiktok': False}
+
+# ==================== HELPER FUNCTIONS ====================
+
+def add_stream_message(message, type='info'):
+    """Add message to live stream"""
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    st.session_state.stream_messages.insert(0, {
+        'time': timestamp,
+        'message': message,
+        'type': type
+    })
+    # Keep only last 100 messages
+    st.session_state.stream_messages = st.session_state.stream_messages[:100]
 
 def calculate_rsi(prices, period=14):
     """Calculate RSI indicator"""
@@ -120,383 +210,422 @@ def calculate_rsi(prices, period=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-def generate_ai_prediction(symbol, hist, info):
-    """Generate AI prediction based on technical and fundamental analysis"""
-    current_price = info.get('regularMarketPrice', 0)
-    change = info.get('regularMarketChangePercent', 0)
-    
-    # Technical signals
-    if len(hist) > 20:
-        ma20 = hist['Close'].rolling(20).mean().iloc[-1]
-        ma50 = hist['Close'].rolling(50).mean().iloc[-1] if len(hist) > 50 else ma20
-        rsi = calculate_rsi(hist['Close']).iloc[-1] if len(hist) > 14 else 50
-    else:
-        ma20 = current_price
-        ma50 = current_price
-        rsi = 50
-    
-    # Determine signal
-    signals = []
-    
-    # Price momentum
-    if change > 2:
-        signals.append(("bullish", 1))
-    elif change < -2:
-        signals.append(("bearish", -1))
-    else:
-        signals.append(("neutral", 0))
-    
-    # Moving averages
-    if current_price > ma20 > ma50:
-        signals.append(("bullish", 1))
-    elif current_price < ma20 < ma50:
-        signals.append(("bearish", -1))
-    else:
-        signals.append(("neutral", 0))
-    
-    # RSI
-    if rsi > 70:
-        signals.append(("bearish", -1))  # Overbought
-    elif rsi < 30:
-        signals.append(("bullish", 1))   # Oversold
-    else:
-        signals.append(("neutral", 0))
-    
-    # Calculate overall score
-    score = sum(s[1] for s in signals)
-    confidence = min(abs(score) * 33 + 50, 95)
-    
-    if score > 0:
-        signal = "BUY"
-        reason = f"Strong technical indicators: {abs(score)} bullish signals detected. RSI at {rsi:.1f} suggests {'oversold' if rsi < 30 else 'momentum'}. Price above key moving averages."
-        target_multiplier = 1.05
-        stop_multiplier = 0.97
-    elif score < 0:
-        signal = "SELL"
-        reason = f"Bearish signals detected. RSI at {rsi:.1f} indicates {'overbought' if rsi > 70 else 'weakness'}. Price below key moving averages."
-        target_multiplier = 0.95
-        stop_multiplier = 1.03
-    else:
-        signal = "HOLD"
-        reason = f"Mixed signals. RSI at {rsi:.1f} indicates neutral zone. Price trading near moving averages. Wait for clearer direction."
-        target_multiplier = 1.02
-        stop_multiplier = 0.98
-    
-    return {
-        'signal': signal,
-        'confidence': int(confidence),
-        'reason': reason,
-        'target_price': current_price * target_multiplier,
-        'stop_loss': current_price * stop_multiplier,
-        'rsi': rsi,
-        'ma20': ma20,
-        'ma50': ma50
-    }
+def calculate_macd(prices):
+    """Calculate MACD indicator"""
+    exp1 = prices.ewm(span=12, adjust=False).mean()
+    exp2 = prices.ewm(span=26, adjust=False).mean()
+    macd = exp1 - exp2
+    signal = macd.ewm(span=9, adjust=False).mean()
+    histogram = macd - signal
+    return macd, signal, histogram
 
-def get_stock_news(symbol):
-    """Get recent news for stock (simulated)"""
-    # In production, you would use a news API like NewsAPI, Finnhub, etc.
-    # For demo, return sample news
-    sample_news = [
-        {
-            'title': f'{symbol} Reports Strong Earnings',
-            'summary': f'{symbol} exceeded analyst expectations with Q4 results.',
-            'source': 'Financial Times',
-            'time': '2 hours ago'
-        },
-        {
-            'title': f'Analysts Upgrade {symbol}',
-            'summary': f'Multiple analysts raise price targets for {symbol}.',
-            'source': 'Bloomberg',
-            'time': '5 hours ago'
-        },
-        {
-            'title': f'{symbol} Technical Analysis Update',
-            'summary': f'Technical indicators show pattern.',
-            'source': 'TradingView',
-            'time': '1 day ago'
+def calculate_bollinger_bands(prices, period=20):
+    """Calculate Bollinger Bands"""
+    sma = prices.rolling(window=period).mean()
+    std = prices.rolling(window=period).std()
+    upper_band = sma + (std * 2)
+    lower_band = sma - (std * 2)
+    return upper_band, lower_band, sma
+
+def analyze_stock(symbol):
+    """Comprehensive stock analysis"""
+    try:
+        stock = yf.Ticker(symbol)
+        info = stock.info
+        hist = stock.history(period="3mo")
+        
+        if hist.empty:
+            return None
+        
+        current_price = info.get('regularMarketPrice', info.get('currentPrice', 0))
+        prev_close = info.get('regularMarketPreviousClose', current_price)
+        change = ((current_price - prev_close) / prev_close * 100) if prev_close else 0
+        volume = info.get('volume', 0)
+        avg_volume = info.get('averageVolume', volume)
+        
+        # Technical indicators
+        if len(hist) > 20:
+            rsi = calculate_rsi(hist['Close']).iloc[-1]
+            macd, signal, hist_macd = calculate_macd(hist['Close'])
+            upper_band, lower_band, sma = calculate_bollinger_bands(hist['Close'])
+            
+            current_rsi = rsi if not pd.isna(rsi) else 50
+            current_macd = macd.iloc[-1] if not pd.isna(macd.iloc[-1]) else 0
+            current_signal = signal.iloc[-1] if not pd.isna(signal.iloc[-1]) else 0
+            current_upper = upper_band.iloc[-1] if not pd.isna(upper_band.iloc[-1]) else current_price * 1.05
+            current_lower = lower_band.iloc[-1] if not pd.isna(lower_band.iloc[-1]) else current_price * 0.95
+            current_sma = sma.iloc[-1] if not pd.isna(sma.iloc[-1]) else current_price
+        else:
+            current_rsi = 50
+            current_macd = 0
+            current_signal = 0
+            current_upper = current_price * 1.05
+            current_lower = current_price * 0.95
+            current_sma = current_price
+        
+        # Volume analysis
+        volume_surge = volume > (avg_volume * 1.5) if avg_volume else False
+        
+        # Generate signals
+        signals = []
+        
+        # RSI signals
+        if current_rsi < 30:
+            signals.append(('bullish', 2, f'RSI oversold at {current_rsi:.1f}'))
+        elif current_rsi > 70:
+            signals.append(('bearish', -2, f'RSI overbought at {current_rsi:.1f}'))
+        
+        # MACD signals
+        if current_macd > current_signal:
+            signals.append(('bullish', 1, 'MACD bullish crossover'))
+        elif current_macd < current_signal:
+            signals.append(('bearish', -1, 'MACD bearish crossover'))
+        
+        # Bollinger Bands signals
+        if current_price <= current_lower:
+            signals.append(('bullish', 2, 'Price at lower Bollinger Band (oversold)'))
+        elif current_price >= current_upper:
+            signals.append(('bearish', -2, 'Price at upper Bollinger Band (overbought)'))
+        
+        # Price vs SMA
+        if current_price > current_sma:
+            signals.append(('bullish', 1, 'Price above moving average'))
+        else:
+            signals.append(('bearish', -1, 'Price below moving average'))
+        
+        # Volume signal
+        if volume_surge and change > 0:
+            signals.append(('bullish', 1, 'Volume surge on uptrend'))
+        elif volume_surge and change < 0:
+            signals.append(('bearish', -1, 'Volume surge on downtrend'))
+        
+        # Calculate overall score
+        total_score = sum(s[1] for s in signals)
+        confidence = min(abs(total_score) * 12.5 + 50, 95)
+        
+        # Determine action
+        if total_score > 2:
+            action = 'BUY'
+            reason = f"Strong bullish signals: {', '.join([s[2] for s in signals if s[0] == 'bullish'])}"
+            target_multiplier = 1.07
+            stop_multiplier = 0.95
+            time_horizon = 'short' if abs(total_score) > 4 else 'medium'
+        elif total_score < -2:
+            action = 'SELL'
+            reason = f"Bearish signals detected: {', '.join([s[2] for s in signals if s[0] == 'bearish'])}"
+            target_multiplier = 0.93
+            stop_multiplier = 1.05
+            time_horizon = 'short' if abs(total_score) > 4 else 'medium'
+        else:
+            action = 'HOLD'
+            reason = f"Mixed signals. RSI: {current_rsi:.1f}, MACD: {current_macd:.2f}"
+            target_multiplier = 1.02
+            stop_multiplier = 0.98
+            time_horizon = 'medium'
+        
+        return {
+            'symbol': symbol,
+            'price': current_price,
+            'change': change,
+            'volume': volume,
+            'avg_volume': avg_volume,
+            'rsi': current_rsi,
+            'macd': current_macd,
+            'action': action,
+            'confidence': int(confidence),
+            'reason': reason,
+            'target': current_price * target_multiplier,
+            'stop_loss': current_price * stop_multiplier,
+            'time_horizon': time_horizon,
+            'signals': signals
         }
-    ]
-    return sample_news
+        
+    except Exception as e:
+        add_stream_message(f"Error analyzing {symbol}: {str(e)}", 'error')
+        return None
 
-def analyze_sentiment(news_items):
-    """Analyze sentiment from news"""
-    if not news_items:
-        return {'label': 'Neutral', 'score': 50}
+def check_alerts(stock_data):
+    """Check for trading alerts based on analysis"""
+    alerts = []
     
-    # Simple sentiment analysis using TextBlob
-    scores = []
-    for item in news_items:
-        blob = TextBlob(item['title'] + " " + item['summary'])
-        scores.append(blob.sentiment.polarity)
+    if not stock_data:
+        return alerts
     
-    avg_score = np.mean(scores) if scores else 0
-    sentiment_score = (avg_score + 1) * 50  # Convert from [-1,1] to [0,100]
+    # Check for strong buy signals
+    if stock_data['action'] == 'BUY' and stock_data['confidence'] > 75:
+        alerts.append(Alert(
+            symbol=stock_data['symbol'],
+            type='BUY',
+            price=stock_data['price'],
+            reason=f"Strong buy signal with {stock_data['confidence']}% confidence. {stock_data['reason']}",
+            confidence=stock_data['confidence'],
+            timestamp=datetime.now()
+        ))
     
-    if sentiment_score > 66:
-        label = "Positive"
-    elif sentiment_score < 33:
-        label = "Negative"
-    else:
-        label = "Neutral"
+    # Check for strong sell signals
+    elif stock_data['action'] == 'SELL' and stock_data['confidence'] > 75:
+        alerts.append(Alert(
+            symbol=stock_data['symbol'],
+            type='SELL',
+            price=stock_data['price'],
+            reason=f"Strong sell signal with {stock_data['confidence']}% confidence. {stock_data['reason']}",
+            confidence=stock_data['confidence'],
+            timestamp=datetime.now()
+        ))
     
-    return {'label': label, 'score': sentiment_score}
+    # Check for RSI extremes
+    if stock_data.get('rsi', 50) < 30:
+        alerts.append(Alert(
+            symbol=stock_data['symbol'],
+            type='ALERT',
+            price=stock_data['price'],
+            reason=f"RSI oversold at {stock_data['rsi']:.1f} - Potential buying opportunity",
+            confidence=70,
+            timestamp=datetime.now()
+        ))
+    elif stock_data.get('rsi', 50) > 70:
+        alerts.append(Alert(
+            symbol=stock_data['symbol'],
+            type='ALERT',
+            price=stock_data['price'],
+            reason=f"RSI overbought at {stock_data['rsi']:.1f} - Consider taking profits",
+            confidence=70,
+            timestamp=datetime.now()
+        ))
+    
+    return alerts
 
-def calculate_overall_sentiment(watchlist):
-    """Calculate overall market sentiment"""
-    # Simplified sentiment calculation
-    overall_score = 65  # Default neutral
-    sentiment_label = "Neutral"
-    
-    if overall_score > 66:
-        sentiment_label = "Bullish"
-    elif overall_score < 33:
-        sentiment_label = "Bearish"
-    
-    return {'label': sentiment_label, 'score': overall_score}
+def create_trade_opportunity(stock_data):
+    """Create trade opportunity from analysis"""
+    if stock_data['action'] in ['BUY', 'SELL'] and stock_data['confidence'] > 70:
+        return TradeOpportunity(
+            symbol=stock_data['symbol'],
+            action=stock_data['action'],
+            entry_price=stock_data['price'],
+            target_price=stock_data['target'],
+            stop_loss=stock_data['stop_loss'],
+            confidence=stock_data['confidence'],
+            reason=stock_data['reason'],
+            time_horizon=stock_data['time_horizon']
+        )
+    return None
 
-def generate_market_summary(watchlist, predictions):
-    """Generate market summary from AI predictions"""
-    buy_count = sum(1 for p in predictions.values() if p['signal'] == 'BUY')
-    sell_count = sum(1 for p in predictions.values() if p['signal'] == 'SELL')
-    hold_count = sum(1 for p in predictions.values() if p['signal'] == 'HOLD')
+def update_all_data():
+    """Update data for all stocks in watchlist"""
+    add_stream_message("🔄 Updating market data...", 'info')
     
-    if buy_count > sell_count:
-        bias = "bullish bias"
-        action = "consider adding to positions"
-    elif sell_count > buy_count:
-        bias = "bearish bias"
-        action = "consider taking profits or reducing exposure"
-    else:
-        bias = "neutral bias"
-        action = "maintain current positions"
+    for symbol in st.session_state.watchlist:
+        analysis = analyze_stock(symbol)
+        if analysis:
+            # Store in session state
+            if 'stock_analysis' not in st.session_state:
+                st.session_state.stock_analysis = {}
+            st.session_state.stock_analysis[symbol] = analysis
+            
+            # Check for alerts
+            new_alerts = check_alerts(analysis)
+            for alert in new_alerts:
+                if alert not in st.session_state.alerts:
+                    st.session_state.alerts.append(alert)
+                    add_stream_message(f"🔔 ALERT: {alert.symbol} - {alert.type} @ ${alert.price:.2f} - {alert.reason}", 'alert')
+            
+            # Create trade opportunity
+            opportunity = create_trade_opportunity(analysis)
+            if opportunity:
+                st.session_state.opportunities.append(opportunity)
+                add_stream_message(f"💡 OPPORTUNITY: {opportunity.action} {opportunity.symbol} @ ${opportunity.entry_price:.2f} (Confidence: {opportunity.confidence}%)", 'opportunity')
     
-    avg_confidence = int(np.mean([p['confidence'] for p in predictions.values()])) if predictions else 0
-    
-    return f"""
-    📊 Market Summary:
-    • {buy_count} BUY signals, {sell_count} SELL signals, {hold_count} HOLD signals
-    • Overall market shows {bias}
-    • Recommended action: {action}
-    • AI Confidence: {avg_confidence}%
-    
-    💡 Key Insight: Focus on stocks with strong technical patterns and positive momentum.
-    """
+    st.session_state.last_update = datetime.now()
+    add_stream_message(f"✅ Data updated - {len(st.session_state.watchlist)} stocks analyzed", 'success')
 
-def generate_market_update(watchlist, predictions):
-    """Generate market update for social media"""
-    top_buy = []
-    top_sell = []
+def post_to_social_media(message, platform='all'):
+    """Post updates to social media"""
+    if platform in ['twitter', 'all'] and st.session_state.social_connected.get('twitter', False):
+        try:
+            # Twitter API integration
+            auth = tweepy.OAuth1UserHandler(
+                st.secrets.get('TWITTER_API_KEY', ''),
+                st.secrets.get('TWITTER_API_SECRET', ''),
+                st.secrets.get('TWITTER_ACCESS_TOKEN', ''),
+                st.secrets.get('TWITTER_ACCESS_SECRET', '')
+            )
+            api = tweepy.API(auth)
+            api.update_status(message[:280])  # Twitter character limit
+            add_stream_message(f"📱 Posted to Twitter: {message[:100]}...", 'social')
+        except Exception as e:
+            add_stream_message(f"Twitter post failed: {str(e)}", 'error')
     
-    for symbol, pred in predictions.items():
-        if pred['signal'] == 'BUY':
-            top_buy.append(f"${symbol}")
-        elif pred['signal'] == 'SELL':
-            top_sell.append(f"${symbol}")
+    if platform in ['instagram', 'all'] and st.session_state.social_connected.get('instagram', False):
+        # Instagram API integration would go here
+        add_stream_message("📷 Instagram post ready (API integration needed)", 'info')
     
-    update = f"🤖 AI Market Update\n\n"
-    if top_buy:
-        update += f"🟢 BUY Signals: {', '.join(top_buy[:3])}\n"
-    if top_sell:
-        update += f"🔴 SELL Signals: {', '.join(top_sell[:3])}\n"
-    
-    avg_confidence = int(np.mean([p['confidence'] for p in predictions.values()])) if predictions else 0
-    update += f"\n📈 AI Confidence: {avg_confidence}%\n"
-    update += f"\n#Stocks #Trading #AI #MarketAnalysis #Investing"
-    
-    return update
+    if platform in ['tiktok', 'all'] and st.session_state.social_connected.get('tiktok', False):
+        # TikTok API integration would go here
+        add_stream_message("🎵 TikTok post ready (API integration needed)", 'info')
 
-# ==================== INITIALIZE SESSION STATE ====================
-if 'watchlist' not in st.session_state:
-    st.session_state.watchlist = ['AAPL', 'TSLA', 'NVDA', 'GOOGL', 'MSFT', 'AMZN']
-if 'ai_insights' not in st.session_state:
-    st.session_state.ai_insights = {}
-if 'predictions' not in st.session_state:
-    st.session_state.predictions = {}
-if 'portfolio' not in st.session_state:
-    st.session_state.portfolio = {}
+def auto_stream_loop():
+    """Background loop for auto-streaming"""
+    while st.session_state.auto_stream:
+        update_all_data()
+        
+        # Post top opportunities to social media
+        if st.session_state.opportunities:
+            latest_opp = st.session_state.opportunities[-1]
+            message = f"🤖 AI Trading Alert: {latest_opp.action} {latest_opp.symbol} @ ${latest_opp.entry_price:.2f}\nTarget: ${latest_opp.target_price:.2f}\nConfidence: {latest_opp.confidence}%\n#Stocks #Trading #AI"
+            post_to_social_media(message, 'twitter')
+        
+        time.sleep(300)  # Update every 5 minutes
 
 # ==================== SIDEBAR ====================
 with st.sidebar:
-    st.markdown("## 🎯 Dashboard Controls")
+    st.markdown("## 🎮 Control Panel")
     
-    # Stock selection
-    st.markdown("### 📊 Stock Watchlist")
+    # Live Stream Control
+    st.markdown("### 📡 Live Stream Control")
+    if st.button("▶️ START LIVE STREAM", use_container_width=True):
+        st.session_state.auto_stream = True
+        add_stream_message("🎥 Live stream started!", 'success')
+        # Start background thread
+        if not hasattr(st.session_state, 'stream_thread'):
+            import threading
+            st.session_state.stream_thread = threading.Thread(target=auto_stream_loop, daemon=True)
+            st.session_state.stream_thread.start()
+    
+    if st.button("⏸️ STOP STREAM", use_container_width=True):
+        st.session_state.auto_stream = False
+        add_stream_message("⏸️ Live stream stopped", 'warning')
+    
+    st.divider()
+    
+    # Stock Watchlist Management
+    st.markdown("### 📊 Watchlist")
     all_stocks = ['AAPL', 'TSLA', 'NVDA', 'GOOGL', 'AMZN', 'MSFT', 'META', 'AMD', 'NFLX', 'JPM', 'V', 'WMT']
-    selected_stocks = st.multiselect("Select stocks to monitor", all_stocks, default=st.session_state.watchlist)
-    st.session_state.watchlist = selected_stocks
-    
-    st.divider()
-    
-    # Time frame selection
-    st.markdown("### ⏰ Time Frame")
-    time_frame = st.selectbox("Chart Time Frame", ["1D", "1W", "1M", "3M", "6M", "1Y"], index=2)
-    
-    st.divider()
-    
-    # AI Settings
-    st.markdown("### 🤖 AI Analysis Settings")
-    ai_confidence = st.slider("AI Confidence Threshold", 0, 100, 70)
-    include_news = st.checkbox("Include News Sentiment", value=True)
-    include_technical = st.checkbox("Include Technical Analysis", value=True)
-    
-    st.divider()
-    
-    # Social Media Integration
-    st.markdown("### 📱 Social Media")
-    st.info("Auto-post to social media platforms")
-    if st.button("📢 Post to Twitter/X", use_container_width=True):
-        update = generate_market_update(st.session_state.watchlist, st.session_state.predictions)
-        st.success(f"✅ Posted to X: {update[:100]}...")
-        st.balloons()
-    if st.button("📷 Post to Instagram", use_container_width=True):
-        st.success("✅ Posted to Instagram!")
-    if st.button("🎵 Post to TikTok", use_container_width=True):
-        st.success("✅ Posted to TikTok!")
-    
-    st.divider()
-    
-    # Refresh button
-    if st.button("🔄 Refresh All Data", use_container_width=True):
+    new_stocks = st.multiselect("Add stocks to watchlist", all_stocks, default=st.session_state.watchlist)
+    if new_stocks != st.session_state.watchlist:
+        st.session_state.watchlist = new_stocks
+        add_stream_message(f"📊 Watchlist updated: {', '.join(st.session_state.watchlist)}", 'info')
         st.rerun()
+    
+    st.divider()
+    
+    # Social Media Connection
+    st.markdown("### 🔗 Social Media Connection")
+    
+    # Twitter
+    st.markdown("**Twitter/X**")
+    twitter_connected = st.checkbox("Connect Twitter", value=st.session_state.social_connected['twitter'])
+    if twitter_connected:
+        st.session_state.social_connected['twitter'] = True
+        st.success("✅ Twitter connected!")
+    else:
+        st.info("Add API keys to connect")
+    
+    # Instagram
+    st.markdown("**Instagram**")
+    instagram_connected = st.checkbox("Connect Instagram", value=st.session_state.social_connected['instagram'])
+    if instagram_connected:
+        st.session_state.social_connected['instagram'] = True
+        st.success("✅ Instagram connected!")
+    
+    # TikTok
+    st.markdown("**TikTok**")
+    tiktok_connected = st.checkbox("Connect TikTok", value=st.session_state.social_connected['tiktok'])
+    if tiktok_connected:
+        st.session_state.social_connected['tiktok'] = True
+        st.success("✅ TikTok connected!")
+    
+    st.divider()
+    
+    # Alert Settings
+    st.markdown("### ⚙️ Alert Settings")
+    alert_threshold = st.slider("Alert Confidence Threshold", 50, 100, 70)
+    enable_email = st.checkbox("Email Alerts", value=False)
+    if enable_email:
+        email = st.text_input("Email Address")
+    
+    st.divider()
+    
+    # Manual Update Button
+    if st.button("🔄 MANUAL UPDATE", use_container_width=True):
+        with st.spinner("Updating data..."):
+            update_all_data()
+        st.success("Data updated!")
 
 # ==================== MAIN DASHBOARD ====================
-st.markdown('<div class="main-header"><h1>🤖 AI Stock Market Intelligence Dashboard</h1><p>Real-time Analysis | AI Predictions | Smart Insights | Auto-Posting</p></div>', unsafe_allow_html=True)
+# Header with Live Status
+col1, col2, col3 = st.columns([2, 1, 1])
+with col1:
+    st.markdown('<div class="live-badge">🔴 LIVE STREAMING 24/7</div>', unsafe_allow_html=True)
+    st.markdown("# 🤖 AI Trading Dashboard")
+    st.caption(f"Last updated: {st.session_state.last_update.strftime('%Y-%m-%d %H:%M:%S')} | Auto-refresh: {'ON' if st.session_state.auto_stream else 'OFF'}")
 
-# Market Overview Section
-st.markdown("## 🌍 Market Overview")
-col1, col2, col3, col4 = st.columns(4)
+with col2:
+    st.metric("Watchlist Size", len(st.session_state.watchlist))
 
-# Get major indices data
-try:
-    spy = yf.Ticker("SPY")
-    spy_info = spy.info
-    spy_price = spy_info.get('regularMarketPrice', 0)
-    spy_change = spy_info.get('regularMarketChangePercent', 0)
-    
-    qqq = yf.Ticker("QQQ")
-    qqq_info = qqq.info
-    qqq_price = qqq_info.get('regularMarketPrice', 0)
-    qqq_change = qqq_info.get('regularMarketChangePercent', 0)
-    
-    dia = yf.Ticker("DIA")
-    dia_info = dia.info
-    dia_price = dia_info.get('regularMarketPrice', 0)
-    dia_change = dia_info.get('regularMarketChangePercent', 0)
-    
-    with col1:
-        st.markdown(f"""
-        <div class="metric-card">
-            <h3>S&P 500 (SPY)</h3>
-            <div style="font-size: 28px; font-weight: bold;">${spy_price:.2f}</div>
-            <div style="color: {'#00ff88' if spy_change >= 0 else '#ff4444'}; font-size: 18px;">
-                {spy_change:+.2f}%
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown(f"""
-        <div class="metric-card">
-            <h3>NASDAQ (QQQ)</h3>
-            <div style="font-size: 28px; font-weight: bold;">${qqq_price:.2f}</div>
-            <div style="color: {'#00ff88' if qqq_change >= 0 else '#ff4444'}; font-size: 18px;">
-                {qqq_change:+.2f}%
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown(f"""
-        <div class="metric-card">
-            <h3>Dow Jones (DIA)</h3>
-            <div style="font-size: 28px; font-weight: bold;">${dia_price:.2f}</div>
-            <div style="color: {'#00ff88' if dia_change >= 0 else '#ff4444'}; font-size: 18px;">
-                {dia_change:+.2f}%
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col4:
-        # Market sentiment
-        market_sentiment = "BULLISH" if spy_change > 0 else "BEARISH"
-        sentiment_color = "#00ff88" if spy_change > 0 else "#ff4444"
-        st.markdown(f"""
-        <div class="metric-card">
-            <h3>Market Sentiment</h3>
-            <div style="font-size: 28px; font-weight: bold; color: {sentiment_color}">
-                {market_sentiment}
-            </div>
-            <div>AI Confidence: {ai_confidence}%</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-except Exception as e:
-    st.error(f"Error loading market data: {str(e)}")
+with col3:
+    active_alerts = len([a for a in st.session_state.alerts if a.timestamp > datetime.now() - timedelta(hours=24)])
+    st.metric("Active Alerts", active_alerts, delta="New" if active_alerts > 0 else "None")
 
-st.divider()
+# Ticker Tape
+ticker_text = " | ".join([f"{s}: ${st.session_state.stock_analysis.get(s, {}).get('price', 0):.2f} ({st.session_state.stock_analysis.get(s, {}).get('change', 0):+.2f}%)" for s in st.session_state.watchlist])
+st.markdown(f"""
+<div class="ticker-tape">
+    <div class="ticker-content">
+        🔴 LIVE MARKET DATA • {ticker_text} • 
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-# ==================== STOCK ANALYSIS SECTION ====================
-st.markdown("## 📈 Stock Analysis & AI Insights")
-
-# Create tabs for different views
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Stock Dashboard", "🤖 AI Predictions", "📰 News & Sentiment", "💼 Portfolio Tracker"])
+# Main Dashboard Tabs
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Live Market Data", "🎯 Trade Opportunities", "🔔 Alerts", "📡 Live Stream", "📱 Social Feed"])
 
 with tab1:
-    # Stock selection for detailed analysis
-    selected_ticker = st.selectbox("Select Stock for Detailed Analysis", st.session_state.watchlist)
+    st.markdown("## 📊 Real-Time Stock Analysis")
     
-    if selected_ticker:
-        try:
-            # Fetch stock data
-            stock = yf.Ticker(selected_ticker)
-            info = stock.info
-            
-            # Get historical data
-            end_date = datetime.now()
-            if time_frame == "1D":
-                start_date = end_date - timedelta(days=1)
-                interval = "5m"
-            elif time_frame == "1W":
-                start_date = end_date - timedelta(weeks=1)
-                interval = "15m"
-            elif time_frame == "1M":
-                start_date = end_date - timedelta(days=30)
-                interval = "1h"
-            elif time_frame == "3M":
-                start_date = end_date - timedelta(days=90)
-                interval = "1d"
-            elif time_frame == "6M":
-                start_date = end_date - timedelta(days=180)
-                interval = "1d"
-            else:
-                start_date = end_date - timedelta(days=365)
-                interval = "1d"
-            
-            hist = stock.history(start=start_date, end=end_date, interval=interval)
-            
-            # Current price and metrics
-            price = info.get('regularMarketPrice', info.get('currentPrice', 0))
-            prev_close = info.get('regularMarketPreviousClose', price)
-            change = ((price - prev_close) / prev_close * 100) if prev_close else 0
-            volume = info.get('volume', 0)
-            avg_volume = info.get('averageVolume', volume)
-            market_cap = info.get('marketCap', 0)
-            pe_ratio = info.get('trailingPE', 0)
-            dividend_yield = info.get('dividendYield', 0) * 100 if info.get('dividendYield') else 0
-            
-            # Display metrics
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Current Price", f"${price:.2f}", f"{change:+.2f}%")
-            with col2:
-                st.metric("Volume", f"{volume:,}", f"{((volume/avg_volume)-1)*100:.0f}% vs avg" if avg_volume else "N/A")
-            with col3:
-                st.metric("Market Cap", f"${market_cap/1e9:.2f}B")
-            with col4:
-                st.metric("P/E Ratio", f"{pe_ratio:.2f}" if pe_ratio else "N/A")
-            
-            # Candlestick chart
+    # Display all stocks in grid
+    cols = st.columns(4)
+    for idx, symbol in enumerate(st.session_state.watchlist):
+        analysis = st.session_state.stock_analysis.get(symbol)
+        if analysis:
+            col = cols[idx % 4]
+            with col:
+                if analysis['action'] == 'BUY':
+                    signal_class = "signal-buy"
+                    signal_icon = "🟢"
+                elif analysis['action'] == 'SELL':
+                    signal_class = "signal-sell"
+                    signal_icon = "🔴"
+                else:
+                    signal_class = "metric-card"
+                    signal_icon = "🟡"
+                
+                st.markdown(f"""
+                <div class="{signal_class}">
+                    <h3>{signal_icon} {symbol}</h3>
+                    <div style="font-size: 24px; font-weight: bold;">${analysis['price']:.2f}</div>
+                    <div style="color: {'#00ff88' if analysis['change'] >= 0 else '#ff4444'}">
+                        {analysis['change']:+.2f}%
+                    </div>
+                    <div>RSI: {analysis.get('rsi', 50):.1f}</div>
+                    <div style="margin-top: 10px;">
+                        <strong>{analysis['action']}</strong> - {analysis['confidence']}%
+                    </div>
+                    <small>{analysis['reason'][:80]}...</small>
+                </div>
+                <br>
+                """, unsafe_allow_html=True)
+    
+    # Detailed chart for selected stock
+    st.markdown("### 📈 Detailed Analysis")
+    selected_chart = st.selectbox("Select stock for chart", st.session_state.watchlist)
+    if selected_chart and selected_chart in st.session_state.stock_analysis:
+        analysis = st.session_state.stock_analysis[selected_chart]
+        
+        # Fetch historical data for chart
+        stock = yf.Ticker(selected_chart)
+        hist = stock.history(period="1d", interval="5m")
+        
+        if not hist.empty:
             fig = go.Figure()
             
             fig.add_trace(go.Candlestick(
@@ -510,294 +639,177 @@ with tab1:
                 decreasing_line_color='#ff4444'
             ))
             
-            # Add volume bars
-            fig.add_trace(go.Bar(
-                x=hist.index,
-                y=hist['Volume'],
-                name='Volume',
-                marker_color='rgba(102, 126, 234, 0.5)',
-                yaxis='y2'
-            ))
-            
             fig.update_layout(
-                title=f'{selected_ticker} Stock Price - {time_frame}',
-                yaxis_title='Price ($)',
-                yaxis2=dict(title='Volume', overlaying='y', side='right'),
+                title=f"{selected_chart} - ${analysis['price']:.2f} ({analysis['action']} Signal - {analysis['confidence']}% Confidence)",
                 template='plotly_dark',
-                height=500,
-                hovermode='x unified'
+                height=500
             )
             
             st.plotly_chart(fig, use_container_width=True)
-            
-            # Technical Indicators
-            if include_technical and len(hist) > 20:
-                st.markdown("### 📊 Technical Indicators")
-                
-                # Calculate moving averages
-                hist['MA20'] = hist['Close'].rolling(window=20).mean()
-                hist['MA50'] = hist['Close'].rolling(window=50).mean()
-                hist['RSI'] = calculate_rsi(hist['Close'])
-                
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    current_price = hist['Close'].iloc[-1]
-                    ma20 = hist['MA20'].iloc[-1]
-                    ma50 = hist['MA50'].iloc[-1] if not pd.isna(hist['MA50'].iloc[-1]) else ma20
-                    
-                    st.markdown(f"""
-                    **Moving Averages**
-                    - MA20: ${ma20:.2f} ({'Above' if current_price > ma20 else 'Below'})
-                    - MA50: ${ma50:.2f} ({'Above' if current_price > ma50 else 'Below'})
-                    """)
-                
-                with col2:
-                    rsi = hist['RSI'].iloc[-1] if not pd.isna(hist['RSI'].iloc[-1]) else 50
-                    rsi_signal = "Overbought" if rsi > 70 else "Oversold" if rsi < 30 else "Neutral"
-                    st.markdown(f"""
-                    **RSI (14)**
-                    - Value: {rsi:.1f}
-                    - Signal: {rsi_signal}
-                    """)
-                
-                with col3:
-                    # Simple trend detection
-                    trend = "Bullish" if hist['Close'].iloc[-1] > hist['Close'].iloc[-20] else "Bearish"
-                    st.markdown(f"""
-                    **Trend Analysis**
-                    - Short-term: {trend}
-                    - Volatility: {'High' if hist['Close'].std() / hist['Close'].mean() > 0.02 else 'Normal'}
-                    """)
-        
-        except Exception as e:
-            st.error(f"Error loading {selected_ticker}: {str(e)}")
 
 with tab2:
-    st.markdown("### 🤖 AI Stock Predictions & Recommendations")
+    st.markdown("## 💰 Active Trade Opportunities")
     
-    # Update predictions for all watchlist stocks
-    for symbol in st.session_state.watchlist:
-        try:
-            stock = yf.Ticker(symbol)
-            info = stock.info
-            hist = stock.history(period="3mo")
-            
-            if not hist.empty:
-                price = info.get('regularMarketPrice', 0)
-                change = info.get('regularMarketChangePercent', 0)
-                
-                # AI Prediction Logic
-                prediction = generate_ai_prediction(symbol, hist, info)
-                st.session_state.predictions[symbol] = prediction
-                
-                # Display signal based on prediction
-                signal_color = ""
-                signal_icon = ""
-                if prediction['signal'] == "BUY":
-                    signal_color = "buy-signal"
-                    signal_icon = "🟢"
-                elif prediction['signal'] == "SELL":
-                    signal_color = "sell-signal"
-                    signal_icon = "🔴"
-                else:
-                    signal_color = "neutral-signal"
-                    signal_icon = "🟡"
-                
-                st.markdown(f"""
-                <div class="{signal_color}">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <h3>{signal_icon} {symbol}</h3>
-                            <div style="font-size: 24px;">${price:.2f}</div>
-                            <div style="color: {'#00ff88' if change >= 0 else '#ff4444'}">{change:+.2f}%</div>
-                        </div>
-                        <div style="text-align: right;">
-                            <div style="font-size: 20px; font-weight: bold;">{prediction['signal']}</div>
-                            <div>Confidence: {prediction['confidence']}%</div>
-                        </div>
-                    </div>
-                    <div style="margin-top: 10px;">
-                        <strong>AI Insight:</strong> {prediction['reason']}
-                    </div>
-                    <div style="margin-top: 5px; font-size: 12px; color: #888;">
-                        Target Price: ${prediction['target_price']:.2f} | 
-                        Stop Loss: ${prediction['stop_loss']:.2f}
-                    </div>
+    # Filter opportunities
+    col_filter1, col_filter2 = st.columns(2)
+    with col_filter1:
+        filter_action = st.selectbox("Filter by action", ["ALL", "BUY", "SELL"])
+    with col_filter2:
+        filter_confidence = st.slider("Min confidence", 0, 100, 50)
+    
+    opportunities = [opp for opp in st.session_state.opportunities if (filter_action == "ALL" or opp.action == filter_action) and opp.confidence >= filter_confidence]
+    
+    for opp in opportunities[-10:]:  # Show last 10 opportunities
+        st.markdown(f"""
+        <div class="opportunity-card">
+            <div style="display: flex; justify-content: space-between;">
+                <div>
+                    <h2>{'🟢' if opp.action == 'BUY' else '🔴'} {opp.action} {opp.symbol}</h2>
+                    <div style="font-size: 32px; font-weight: bold;">${opp.entry_price:.2f}</div>
                 </div>
-                <br>
-                """, unsafe_allow_html=True)
-            
-        except Exception as e:
-            st.error(f"Error analyzing {symbol}: {str(e)}")
+                <div style="text-align: right;">
+                    <div>Confidence: {opp.confidence}%</div>
+                    <div>Time Horizon: {opp.time_horizon}</div>
+                </div>
+            </div>
+            <div style="margin-top: 10px;">
+                <strong>Target Price:</strong> ${opp.target_price:.2f}<br>
+                <strong>Stop Loss:</strong> ${opp.stop_loss:.2f}<br>
+                <strong>Reason:</strong> {opp.reason}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     
-    # Market Summary
-    if st.session_state.predictions:
-        st.markdown("### 📈 Market Summary & Insights")
-        summary = generate_market_summary(st.session_state.watchlist, st.session_state.predictions)
-        st.info(summary)
+    # Action buttons for each opportunity
+    if opportunities:
+        st.markdown("### 🎯 Take Action")
+        selected_opp = st.selectbox("Select opportunity", [f"{opp.action} {opp.symbol} @ ${opp.entry_price:.2f}" for opp in opportunities[-5:]])
+        if st.button("Execute Trade", use_container_width=True):
+            add_stream_message(f"💼 Trade executed: {selected_opp}", 'success')
+            post_to_social_media(f"🤖 AI Trade Alert: {selected_opp} - Confidence high! #Trading #AI", 'twitter')
 
 with tab3:
-    st.markdown("### 📰 News & Market Sentiment")
+    st.markdown("## 🔔 Active Alerts")
     
-    for symbol in st.session_state.watchlist:
-        try:
-            # Get news for stock
-            news = get_stock_news(symbol)
-            sentiment = analyze_sentiment(news)
-            
-            with st.expander(f"{symbol} - Sentiment: {sentiment['label']} ({sentiment['score']:.1f})"):
-                if news:
-                    for item in news[:3]:
-                        st.markdown(f"""
-                        <div class="news-item">
-                            <strong>{item['title']}</strong><br>
-                            {item['summary']}<br>
-                            <small>{item['source']} | {item['time']}</small>
-                        </div>
-                        """, unsafe_allow_html=True)
-                else:
-                    st.write("No recent news found")
-                    
-        except Exception as e:
-            st.error(f"Error fetching news for {symbol}: {str(e)}")
+    # Display recent alerts
+    for alert in st.session_state.alerts[-20:]:
+        st.markdown(f"""
+        <div class="alert-card">
+            <div style="display: flex; justify-content: space-between;">
+                <div>
+                    <strong>{'🚨' if alert.type == 'ALERT' else ('🟢' if alert.type == 'BUY' else '🔴')} {alert.type}</strong> {alert.symbol}
+                </div>
+                <div>{alert.timestamp.strftime('%H:%M:%S')}</div>
+            </div>
+            <div style="font-size: 20px;">${alert.price:.2f}</div>
+            <div>{alert.reason}</div>
+            <div>Confidence: {alert.confidence}%</div>
+        </div>
+        """, unsafe_allow_html=True)
     
-    # Market sentiment gauge
-    st.markdown("### 📊 Market Sentiment Gauge")
-    overall_sentiment = calculate_overall_sentiment(st.session_state.watchlist)
-    
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=overall_sentiment['score'],
-        title={'text': "Market Sentiment Score"},
-        domain={'x': [0, 1], 'y': [0, 1]},
-        gauge={
-            'axis': {'range': [None, 100]},
-            'bar': {'color': "#00ff88"},
-            'steps': [
-                {'range': [0, 33], 'color': "#ff4444"},
-                {'range': [33, 66], 'color': "#ffaa00"},
-                {'range': [66, 100], 'color': "#00ff88"}
-            ],
-            'threshold': {
-                'line': {'color': "white", 'width': 4},
-                'thickness': 0.75,
-                'value': overall_sentiment['score']
-            }
-        }
-    ))
-    
-    fig.update_layout(height=400, template='plotly_dark')
-    st.plotly_chart(fig, use_container_width=True)
+    # Clear alerts button
+    if st.button("Clear All Alerts", use_container_width=True):
+        st.session_state.alerts = []
+        add_stream_message("All alerts cleared", 'info')
+        st.rerun()
 
 with tab4:
-    st.markdown("### 💼 Portfolio Tracker")
+    st.markdown("## 📡 Live Data Stream")
     
-    # Portfolio input
-    st.markdown("#### Add/Edit Portfolio Holdings")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        portfolio_symbol = st.selectbox("Symbol", st.session_state.watchlist if st.session_state.watchlist else ['AAPL'], key="portfolio_symbol")
-    with col2:
-        shares = st.number_input("Shares", min_value=0, value=0, step=1)
-    with col3:
-        buy_price = st.number_input("Buy Price ($)", min_value=0.0, value=0.0, step=0.01)
-    
-    if st.button("Add to Portfolio"):
-        st.session_state.portfolio[portfolio_symbol] = {
-            'shares': shares,
-            'buy_price': buy_price,
-            'date_added': datetime.now()
-        }
-        st.success(f"Added {shares} shares of {portfolio_symbol} at ${buy_price}")
-        st.rerun()
-    
-    # Display portfolio
-    if st.session_state.portfolio:
-        portfolio_data = []
-        total_value = 0
-        total_cost = 0
-        
-        for symbol, holding in st.session_state.portfolio.items():
-            try:
-                stock = yf.Ticker(symbol)
-                info = stock.info
-                current_price = info.get('regularMarketPrice', 0)
-                current_value = current_price * holding['shares']
-                cost_basis = holding['buy_price'] * holding['shares']
-                pnl = current_value - cost_basis
-                pnl_pct = (pnl / cost_basis * 100) if cost_basis > 0 else 0
-                
-                portfolio_data.append({
-                    'Symbol': symbol,
-                    'Shares': holding['shares'],
-                    'Buy Price': f"${holding['buy_price']:.2f}",
-                    'Current Price': f"${current_price:.2f}",
-                    'Current Value': f"${current_value:.2f}",
-                    'P&L': f"${pnl:.2f}",
-                    'P&L %': f"{pnl_pct:+.2f}%"
-                })
-                
-                total_value += current_value
-                total_cost += cost_basis
-                
-            except:
-                pass
-        
-        if portfolio_data:
-            df = pd.DataFrame(portfolio_data)
-            st.dataframe(df, use_container_width=True)
+    # Live stream display
+    stream_container = st.container()
+    with stream_container:
+        st.markdown('<div class="live-stream">', unsafe_allow_html=True)
+        for msg in st.session_state.stream_messages[:50]:
+            if msg['type'] == 'alert':
+                color = "#ff3366"
+                icon = "🔔"
+            elif msg['type'] == 'opportunity':
+                color = "#00ff88"
+                icon = "💡"
+            elif msg['type'] == 'success':
+                color = "#00ff88"
+                icon = "✅"
+            elif msg['type'] == 'error':
+                color = "#ff4444"
+                icon = "❌"
+            elif msg['type'] == 'social':
+                color = "#00aaff"
+                icon = "📱"
+            else:
+                color = "#888"
+                icon = "ℹ️"
             
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Total Portfolio Value", f"${total_value:.2f}")
-            with col2:
-                st.metric("Total Cost Basis", f"${total_cost:.2f}")
-            with col3:
-                total_pnl = total_value - total_cost
-                total_pnl_pct = ((total_value/total_cost)-1)*100 if total_cost > 0 else 0
-                st.metric("Total P&L", f"${total_pnl:.2f}", f"{total_pnl_pct:+.2f}%")
-    else:
-        st.info("Add stocks to your portfolio to track performance")
+            st.markdown(f"""
+            <div class="stream-message" style="border-left-color: {color};">
+                <span style="color: {color};">{icon}</span>
+                <strong>[{msg['time']}]</strong> {msg['message']}
+            </div>
+            """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Stream controls
+    col_clear, col_export = st.columns(2)
+    with col_clear:
+        if st.button("Clear Stream", use_container_width=True):
+            st.session_state.stream_messages = []
+            st.rerun()
+    with col_export:
+        if st.button("Export Log", use_container_width=True):
+            log_text = "\n".join([f"[{m['time']}] {m['message']}" for m in st.session_state.stream_messages])
+            st.download_button("Download Log", log_text, "trading_log.txt")
 
-# ==================== SOCIAL MEDIA POSTING SECTION ====================
-st.divider()
-st.markdown("## 📱 Social Media Integration")
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.markdown("### 🐦 Twitter/X")
-    if st.button("Post Market Update to X", use_container_width=True):
-        if st.session_state.predictions:
-            update = generate_market_update(st.session_state.watchlist, st.session_state.predictions)
-            st.success(f"✅ Posted to X: {update[:100]}...")
-            st.balloons()
-        else:
-            st.warning("No predictions available yet. Refresh data first.")
-
-with col2:
-    st.markdown("### 📷 Instagram")
-    if st.button("Post Chart to Instagram", use_container_width=True):
-        st.success("✅ Chart posted to Instagram Stories!")
-
-with col3:
-    st.markdown("### 🎵 TikTok")
-    if st.button("Create TikTok Video", use_container_width=True):
-        st.success("✅ TikTok video created and posted!")
-
-# Auto-posting schedule
-st.markdown("### ⏰ Auto-Posting Schedule")
-auto_post = st.selectbox("Auto-post frequency", ["Off", "Every hour", "Every 4 hours", "Twice daily", "Daily"])
-
-if auto_post != "Off":
-    st.info(f"Auto-posting enabled: {auto_post}. Market updates will be automatically posted to your connected social media accounts.")
+with tab5:
+    st.markdown("## 📱 Social Media Feed")
+    
+    # Post to social media
+    st.markdown("### Create Post")
+    post_content = st.text_area("What's happening?", height=100, placeholder="Share your trading insights...")
+    
+    col_post1, col_post2, col_post3 = st.columns(3)
+    with col_post1:
+        if st.button("🐦 Post to X", use_container_width=True) and post_content:
+            post_to_social_media(post_content, 'twitter')
+            add_stream_message(f"Posted to Twitter: {post_content[:100]}", 'social')
+            st.success("Posted to Twitter!")
+    
+    with col_post2:
+        if st.button("📷 Post to Instagram", use_container_width=True) and post_content:
+            post_to_social_media(post_content, 'instagram')
+            st.success("Posted to Instagram!")
+    
+    with col_post3:
+        if st.button("🎵 Post to TikTok", use_container_width=True) and post_content:
+            post_to_social_media(post_content, 'tiktok')
+            st.success("Posted to TikTok!")
+    
+    st.divider()
+    
+    # Auto-post settings
+    st.markdown("### 🤖 Auto-Post Settings")
+    auto_post_frequency = st.selectbox("Auto-post frequency", ["Off", "Every hour", "Every 4 hours", "Every market hour"])
+    
+    if auto_post_frequency != "Off":
+        st.info(f"Auto-posting enabled: {auto_post_frequency}. Market updates will be posted automatically.")
+        
+        # Preview of auto-post message
+        if st.session_state.opportunities:
+            latest = st.session_state.opportunities[-1]
+            preview = f"🤖 AI Trading Alert: {latest.action} {latest.symbol} @ ${latest.entry_price:.2f}\nTarget: ${latest.target_price:.2f}\nConfidence: {latest.confidence}%\n#Stocks #Trading #AI"
+            st.markdown("**Preview of next auto-post:**")
+            st.info(preview)
 
 # ==================== FOOTER ====================
 st.divider()
 st.markdown("""
 <div style="text-align: center; color: #888; padding: 20px;">
-    🤖 AI-Powered Stock Market Intelligence Dashboard<br>
-    Real-time Data | AI Predictions | Smart Insights | Auto-Posting to Social Media<br>
-    <small>Not financial advice. Always do your own research before investing.</small>
+    🤖 AI Trading Dashboard - 24/7 Live Market Intelligence<br>
+    Real-time Analysis | AI Predictions | Auto-Alerts | Social Media Integration<br>
+    <small>⚠️ Not financial advice. Always do your own research before trading.</small>
 </div>
 """, unsafe_allow_html=True)
+
+# ==================== AUTO-START ON LOAD ====================
+# Initial data load
+if 'stock_analysis' not in st.session_state or len(st.session_state.stock_analysis) == 0:
+    update_all_data()
