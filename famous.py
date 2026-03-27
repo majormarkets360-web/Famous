@@ -34,6 +34,54 @@ except ImportError:
         def connect_twitter(self, *args): return False, "Not available"
         def stream_to_all(self, *args): return {}
 
+# Import auto broadcaster
+from auto_broadcaster import AutoBroadcaster
+
+# Initialize auto broadcaster
+if 'broadcaster' not in st.session_state:
+    st.session_state.broadcaster = AutoBroadcaster(st.session_state.social_streamer)
+
+# Add to sidebar
+with st.sidebar:
+    st.divider()
+    st.markdown("### 🤖 Auto-Broadcaster")
+    
+    col_broad1, col_broad2 = st.columns(2)
+    with col_broad1:
+        if st.button("▶️ START BROADCAST", use_container_width=True):
+            msg = st.session_state.broadcaster.start_broadcasting()
+            st.success(msg)
+            add_stream_message("🤖 Auto-broadcaster started", 'success')
+    
+    with col_broad2:
+        if st.button("⏸️ STOP BROADCAST", use_container_width=True):
+            msg = st.session_state.broadcaster.stop_broadcasting()
+            st.warning(msg)
+            add_stream_message("⏸️ Auto-broadcaster stopped", 'warning')
+    
+    # Broadcast frequency
+    broadcast_frequency = st.select_slider(
+        "Broadcast Frequency",
+        options=["Every minute", "Every 5 min", "Every 15 min", "Every hour", "Custom"],
+        value="Every 15 min"
+    )
+    
+    # Content types
+    st.markdown("### 📱 Content to Broadcast")
+    broadcast_market = st.checkbox("Market Updates", value=True)
+    broadcast_alerts = st.checkbox("Trading Alerts", value=True)
+    broadcast_sectors = st.checkbox("Sector Analysis", value=True)
+    broadcast_videos = st.checkbox("Video Summaries", value=True)
+    
+    # Platform selection
+    st.markdown("### 📡 Broadcast Platforms")
+    col_plat1, col_plat2 = st.columns(2)
+    with col_plat1:
+        broadcast_twitter = st.checkbox("Twitter/X", value=True)
+        broadcast_youtube = st.checkbox("YouTube", value=True)
+    with col_plat2:
+        broadcast_facebook = st.checkbox("Facebook", value=True)
+        broadcast_tiktok = st.checkbox("TikTok", value=True)
 # ==================== GLOBAL EXCHANGE CONFIGURATION ====================
 EXCHANGES = {
     "🇺🇸 New York Stock Exchange": {
