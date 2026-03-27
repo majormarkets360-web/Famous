@@ -20,6 +20,7 @@ from typing import Dict, List, Optional
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from social_streamer import SocialMediaStreamer
 
 # Check for optional imports
 try:
@@ -87,6 +88,8 @@ def init_session_state():
         st.session_state.stock_analysis = {}
     if 'stream_thread_started' not in st.session_state:
         st.session_state.stream_thread_started = False
+        if 'social_streamer' not in st.session_state:
+        st.session_state.social_streamer = SocialMediaStreamer()
 
 # Call initialization
 init_session_state()
