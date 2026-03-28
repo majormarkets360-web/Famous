@@ -379,7 +379,7 @@ if BACKGROUND_IMAGE:
     """
 
 background_css += """
-    .exchange-card, .market-card, .sector-item, .alert-card, .stat-card {
+    .exchange-card, .market-card, .sector-item, .alert-card, .stat-card, .investment-card {
         background: rgba(26, 26, 46, 0.7) !important;
         backdrop-filter: blur(10px);
         border: 1px solid rgba(0, 255, 136, 0.2);
@@ -387,7 +387,7 @@ background_css += """
         transition: all 0.3s ease;
     }
     
-    .exchange-card:hover, .market-card:hover, .sector-item:hover, .alert-card:hover, .stat-card:hover {
+    .exchange-card:hover, .market-card:hover, .sector-item:hover, .alert-card:hover, .stat-card:hover, .investment-card:hover {
         border: 1px solid #00ff88;
         background: rgba(0, 255, 136, 0.1) !important;
         transform: translateY(-3px);
@@ -557,7 +557,6 @@ background_css += """
         border-left: 4px solid #ff4444;
     }
     
-    /* Advertisement Placeholders - Styled as VISUAL CARDS */
     .ad-container {
         background: rgba(0, 0, 0, 0.6);
         backdrop-filter: blur(10px);
@@ -619,12 +618,8 @@ background_css += """
         top: 20px;
     }
     
-    /* Investment Calculator Card */
     .investment-card {
         background: rgba(26, 26, 46, 0.8);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(0, 255, 136, 0.3);
-        border-radius: 20px;
         padding: 20px;
         margin: 20px 0;
     }
@@ -877,4 +872,14 @@ with main_left:
                     </div>
                     <div style="font-size: 18px; font-weight: 600;">{alert.symbol}</div>
                     <div>${alert.price:.2f} ({alert.change:+.1f}%)</div>
-                    <small>{alert.exchange}</
+                    <small>{alert.exchange}</small>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("No active alerts")
+    
+    with ai_col:
+        st.markdown("## 🤖 AI Picks")
+        for symbol, pred in list(st.session_state.ai_predictions.items())[:3]:
+            if pred:
+                signal_color = "#00ff
