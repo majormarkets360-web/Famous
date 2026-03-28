@@ -29,9 +29,9 @@ def set_background(image_file):
     except:
         return None
 
-# Try to load background image (place your image in the same folder)
+# Try to load background image
 BACKGROUND_IMAGE = None
-background_file = "grok_image_1774635168261.jpg"  # Change to your filename
+background_file = "grok_image_1774635168261.jpg"
 if os.path.exists(background_file):
     BACKGROUND_IMAGE = set_background(background_file)
 
@@ -330,11 +330,9 @@ def update_all_data():
         st.session_state.last_update = datetime.now()
     return True
 
-# ==================== ENHANCED CSS WITH BACKGROUND & ADS ====================
-# Build CSS with background image
+# ==================== CSS STYLING ====================
 background_css = """
 <style>
-    /* Main background with overlay and image */
     .stApp {
         background: linear-gradient(135deg, rgba(10, 10, 42, 0.85), rgba(26, 26, 58, 0.85));
         background-size: cover;
@@ -343,7 +341,6 @@ background_css = """
     }
 """
 
-# Add background image if available
 if BACKGROUND_IMAGE:
     background_css += f"""
     .stApp {{
@@ -356,9 +353,7 @@ if BACKGROUND_IMAGE:
     }}
     """
 
-# Add the rest of the CSS
 background_css += """
-    /* Glass morphism effect for all cards */
     .exchange-card, .market-card, .sector-item, .alert-card, .stat-card {
         background: rgba(26, 26, 46, 0.7) !important;
         backdrop-filter: blur(10px);
@@ -367,74 +362,12 @@ background_css += """
         transition: all 0.3s ease;
     }
     
-    /* Animated border on hover */
     .exchange-card:hover, .market-card:hover, .sector-item:hover, .alert-card:hover, .stat-card:hover {
         border-image: linear-gradient(45deg, #00ff88, #00cc66) 1;
         border: 1px solid transparent;
         background: rgba(0, 255, 136, 0.1) !important;
         transform: translateY(-3px);
         box-shadow: 0 10px 30px rgba(0, 255, 136, 0.2);
-    }
-    
-    /* Timezone Container */
-    .timezone-container {
-        background: rgba(0, 0, 0, 0.3);
-        border-radius: 20px;
-        padding: 15px 20px;
-        margin-bottom: 15px;
-        border: 1px solid rgba(0, 255, 136, 0.2);
-    }
-    
-    .timezone-title {
-        font-size: 14px;
-        color: #00ff88;
-        text-transform: uppercase;
-        letter-spacing: 2px;
-        margin-bottom: 15px;
-        text-align: center;
-    }
-    
-    .timezone-grid {
-        display: flex;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 10px;
-    }
-    
-    .timezone-item {
-        flex: 1;
-        min-width: 100px;
-        text-align: center;
-        padding: 10px 5px;
-        background: rgba(26, 26, 46, 0.5);
-        border-radius: 12px;
-        transition: all 0.3s;
-        border-bottom: 2px solid transparent;
-    }
-    
-    .timezone-item:hover {
-        background: rgba(0, 255, 136, 0.1);
-        border-bottom-color: #00ff88;
-        transform: translateY(-2px);
-    }
-    
-    .timezone-city {
-        font-size: 12px;
-        font-weight: 600;
-        color: #aaa;
-        margin-bottom: 5px;
-    }
-    
-    .timezone-time {
-        font-size: 20px;
-        font-weight: 700;
-        color: white;
-        font-family: monospace;
-    }
-    
-    .timezone-status {
-        font-size: 10px;
-        margin-top: 5px;
     }
     
     /* Floating Timezone Ticker */
@@ -476,7 +409,6 @@ background_css += """
         font-family: monospace;
     }
     
-    /* Live ticker styling */
     .ticker-bar {
         background: rgba(0, 0, 0, 0.5);
         backdrop-filter: blur(5px);
@@ -494,7 +426,6 @@ background_css += """
         white-space: nowrap;
     }
     
-    /* Button styling */
     .stButton > button {
         background: linear-gradient(135deg, #00ff88, #00cc66);
         color: #000;
@@ -509,19 +440,16 @@ background_css += """
         box-shadow: 0 5px 20px rgba(0, 255, 136, 0.3);
     }
     
-    /* Sidebar styling */
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, rgba(10, 10, 42, 0.95), rgba(5, 5, 20, 0.95));
         backdrop-filter: blur(10px);
         border-right: 1px solid rgba(0, 255, 136, 0.2);
     }
     
-    /* Metric value styling */
     [data-testid="stMetricValue"] {
         color: #00ff88;
     }
     
-    /* Alert animation */
     @keyframes pulse {
         0%, 100% { opacity: 1; }
         50% { opacity: 0.7; }
@@ -531,11 +459,9 @@ background_css += """
         animation: pulse 2s infinite;
     }
     
-    /* Positive/Negative colors */
     .positive { color: #00ff88; }
     .negative { color: #ff4444; }
     
-    /* Header styling */
     .main-header {
         background: linear-gradient(135deg, rgba(10, 10, 42, 0.9), rgba(26, 26, 58, 0.9));
         backdrop-filter: blur(10px);
@@ -545,7 +471,6 @@ background_css += """
         border-bottom: 2px solid #00ff88;
     }
     
-    /* Live badge */
     .live-badge {
         background: linear-gradient(90deg, #ff3366, #ff0066);
         color: white;
@@ -555,7 +480,6 @@ background_css += """
         animation: pulse 2s infinite;
     }
     
-    /* Card inner styling */
     .market-name {
         font-size: 16px;
         font-weight: 600;
@@ -601,7 +525,6 @@ background_css += """
         margin-top: 5px;
     }
     
-    /* Alert card types */
     .alert-buy {
         border-left: 4px solid #00ff88;
     }
@@ -657,25 +580,10 @@ background_css += """
         transform: scale(1.05);
     }
     
-    /* Right sidebar ad placement */
     .right-ad {
         position: sticky;
         top: 20px;
         margin-bottom: 20px;
-    }
-    
-    /* Bottom ad placement */
-    .bottom-ads {
-        margin-top: 30px;
-        padding-top: 20px;
-        border-top: 1px solid rgba(0, 255, 136, 0.2);
-    }
-    
-    .ad-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 15px;
-        margin-top: 15px;
     }
 </style>
 """
@@ -698,7 +606,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==================== FLOATING TIMEZONE TICKER ====================
-# Create timezone ticker content
 timezone_ticker_parts = []
 for name, config in EXCHANGES.items():
     current_time = get_exchange_time(config['timezone'])
@@ -712,7 +619,6 @@ for name, config in EXCHANGES.items():
     except:
         status_icon = "⚪"
     
-    # Extract city name
     city_name = config['city']
     timezone_ticker_parts.append(f"<span class='ticker-timezone-item'><span class='ticker-city'>{city_name}</span> <span class='ticker-time'>{current_time}</span> {status_icon}</span>")
 
@@ -726,44 +632,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ==================== SLEEK TIMEZONE GRID ====================
-st.markdown("""
-<div class="timezone-container">
-    <div class="timezone-title">📊 MARKET HOURS BY REGION</div>
-    <div class="timezone-grid">
-""", unsafe_allow_html=True)
-
-# Generate timezone items
-for name, config in EXCHANGES.items():
-    current_time = get_exchange_time(config['timezone'])
-    try:
-        import pytz
-        tz = pytz.timezone(config['timezone'])
-        local_time = datetime.now(tz)
-        hour = local_time.hour
-        is_open = 9 <= hour <= 16
-        status = "🟢 OPEN" if is_open else "🔴 CLOSED"
-        status_color = "#00ff88" if is_open else "#ff4444"
-    except:
-        status = "⚪ UNKNOWN"
-        status_color = "#888"
-    
-    city_name = config['city']
-    
-    st.markdown(f"""
-    <div class="timezone-item">
-        <div class="timezone-city">{city_name}</div>
-        <div class="timezone-time">{current_time}</div>
-        <div class="timezone-status" style="color: {status_color};">{status}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.markdown("""
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ==================== TICKER BAR ====================
+# ==================== MARKET DATA TICKER ====================
 def create_ticker_text():
     ticker_parts = []
     for name, data in st.session_state.exchange_data.items():
@@ -834,7 +703,7 @@ with c4:
 main_left, main_right = st.columns([2.5, 1])
 
 with main_right:
-    # Right side advertisement placeholders (5 total)
+    # 5 Advertisement Placeholders
     st.markdown("""
     <div class="right-ad">
         <div class="ad-container">
@@ -924,4 +793,91 @@ with main_left:
     
     market_cols = st.columns(2)
     for idx, (name, data) in enumerate(st.session_state.exchange_data.items()):
-        with market_cols[idx % 2
+        with market_cols[idx % 2]:
+            change_class = "positive" if data.index_change >= 0 else "negative"
+            st.markdown(f"""
+            <div class="exchange-card">
+                <div class="market-name">{name}</div>
+                <div class="market-value">{data.index_value:.2f}</div>
+                <div class="market-change {change_class}">{data.index_change:+.2f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    # Sector Performance
+    st.markdown("## 📈 Sector Performance")
+    
+    sector_cols = st.columns(4)
+    for idx, (name, data) in enumerate(st.session_state.sector_data.items()):
+        with sector_cols[idx % 4]:
+            color = "#00ff88" if data.performance > 0 else "#ff4444"
+            icon = SECTORS[name]["icon"]
+            st.markdown(f"""
+            <div class="sector-item">
+                <div class="sector-icon">{icon}</div>
+                <div class="sector-name">{name}</div>
+                <div class="sector-perf" style="color: {color};">{data.performance:+.1f}%</div>
+                <div style="font-size: 11px; color: #888;">{data.signal}</div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    # Alerts and AI Picks
+    alert_col, ai_col = st.columns(2)
+    
+    with alert_col:
+        st.markdown("## 🚨 Hot Alerts")
+        if st.session_state.global_alerts:
+            for alert in st.session_state.global_alerts[-3:]:
+                alert_class = "alert-buy" if "BUY" in alert.alert_type else "alert-sell"
+                st.markdown(f"""
+                <div class="alert-card {alert_class}">
+                    <div style="display: flex; justify-content: space-between;">
+                        <strong>{alert.alert_type}</strong>
+                        <small>{alert.timestamp.strftime('%H:%M')}</small>
+                    </div>
+                    <div style="font-size: 18px; font-weight: 600;">{alert.symbol}</div>
+                    <div>${alert.price:.2f} ({alert.change:+.1f}%)</div>
+                    <small>{alert.exchange}</small>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("No active alerts")
+    
+    with ai_col:
+        st.markdown("## 🤖 AI Picks")
+        for symbol, pred in list(st.session_state.ai_predictions.items())[:3]:
+            if pred:
+                signal_color = "#00ff88" if pred.signal == "BUY" else "#ff4444" if pred.signal == "SELL" else "#ffaa00"
+                st.markdown(f"""
+                <div class="market-card">
+                    <div class="market-name">{symbol}</div>
+                    <div class="market-value">${pred.current_price:.2f}</div>
+                    <div style="color: {signal_color};">{pred.signal} ({pred.confidence}%)</div>
+                    <small>Target: ${pred.target:.2f}</small>
+                </div>
+                """, unsafe_allow_html=True)
+
+# ==================== ECONOMIC INDICATORS ====================
+st.markdown("## 📊 Economic Indicators")
+
+eco_cols = st.columns(4)
+
+try:
+    vix = yf.Ticker("^VIX")
+    vix_info = vix.info
+    vix_price = vix_info.get('regularMarketPrice', 15)
+    vix_change = vix_info.get('regularMarketChangePercent', 0)
+    
+    with eco_cols[0]:
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">VIX (Fear Index)</div>
+            <div class="stat-value">{vix_price:.1f}</div>
+            <div class="{'positive' if vix_change < 0 else 'negative'}">{vix_change:+.1f}%</div>
+        </div>
+        """, unsafe_allow_html=True)
+except:
+    pass
+
+try:
+    tnx = yf.Ticker("^TNX")
+    tnx_info = tnx.info
