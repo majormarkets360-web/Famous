@@ -885,4 +885,4 @@ except:
 
 # 10 Year Treasury
 try:
-    tnx
+    tnx = y
