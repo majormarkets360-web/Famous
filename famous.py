@@ -826,6 +826,263 @@ with st.sidebar:
     for msg in st.session_state.stream_messages[:3]:
         st.caption(f"[{msg.get('time', '')}] {msg.get('message', '')}")
 
+# Add to the top of your app with other imports
+from social_manager import SocialMediaManager
+
+# Add to session state initialization
+if 'social_manager' not in st.session_state:
+    st.session_state.social_manager = SocialMediaManager()
+
+# Add this to your sidebar (add after the existing sidebar content)
+with st.sidebar:
+    # ... existing sidebar content ...
+    
+    st.divider()
+    st.markdown("### 🌐 Social Media")
+    
+    # Social Media Tabs
+    sm_tab1, sm_tab2, sm_tab3 = st.tabs(["🔌 Connect", "📤 Post", "📊 History"])
+    
+    with sm_tab1:
+        st.markdown("#### Connect Your Accounts")
+        
+        # Twitter Connection
+        with st.expander("🐦 Twitter/X", expanded=False):
+            twitter_key = st.text_input("API Key", type="password", key="tw_api")
+            twitter_secret = st.text_input("API Secret", type="password", key="tw_secret")
+            twitter_token = st.text_input("Access Token", type="password", key="tw_token")
+            twitter_token_secret = st.text_input("Access Secret", type="password", key="tw_token_secret")
+            
+            if st.button("Connect Twitter", key="conn_twitter"):
+                if all([twitter_key, twitter_secret, twitter_token, twitter_token_secret]):
+                    success, msg = st.session_state.social_manager.connect_twitter(
+                        twitter_key, twitter_secret, twitter_token, twitter_token_secret
+                    )
+                    if success:
+                        st.success(msg)
+                    else:
+                        st.error(msg)
+        
+        # YouTube Connection
+        with st.expander("📺 YouTube", expanded=False):
+            youtube_file = st.file_uploader("Upload client_secrets.json", type=['json'], key="youtube_secrets")
+            if youtube_file:
+                secrets_path = tempfile.mktemp(suffix=".json")
+                with open(secrets_path, 'wb') as f:
+                    f.write(youtube_file.getvalue())
+                
+                if st.button("Connect YouTube", key="conn_youtube"):
+                    success, msg = st.session_state.social_manager.connect_youtube(secrets_path)
+                    if success:
+                        st.success(msg)
+                    else:
+                        st.error(msg)
+        
+        # Facebook Connection
+        with st.expander("📘 Facebook", expanded=False):
+            fb_token = st.text_input("Access Token", type="password", key="fb_token")
+            fb_page = st.text_input("Page ID (optional)", key="fb_page")
+            
+            if st.button("Connect Facebook", key="conn_facebook"):
+                if fb_token:
+                    success, msg = st.session_state.social_manager.connect_facebook(fb_token, fb_page)
+                    if success:
+                        st.success(msg)
+                    else:
+                        st.error(msg)
+        
+        # Instagram Connection
+        with st.expander("📷 Instagram", expanded=False):
+            ig_token = st.text_input("Access Token", type="password", key="ig_token")
+            ig_account = st.text_input("Business Account ID", key="ig_account")
+            
+            if st.button("Connect Instagram", key="conn_instagram"):
+                if ig_token and ig_account:
+                    success, msg = st.session_state.social_manager.connect_instagram(ig_token, ig_account)
+                    if success:
+                        st.success(msg)
+                    else:
+                        st.error(msg)
+        
+        # TikTok Connection
+        with st.expander("🎵 TikTok", expanded=False):
+            st.info("TikTok requires developer account setup")
+            tt_session = st.text_input("Session ID (optional)", type="password", key="tt_session")
+            
+            if st.button("Configure TikTok", key="conn_tiktok"):
+                success, msg = st.session_state.social_manager.connect_tiktok(session_id=tt_session)
+                if success:
+                    st.success(msg)
+                else:
+                    st.error(msg)
+        
+        # Connection Status
+        st.markdown("#### Connection Status")
+        connected = st.session_state.social_manager.get_connected_platforms()
+        if connected:
+            for platform in connected:
+                st.success(f"✅ {platform.capitalize()}")
+        else:
+            st.warning("No platforms connected")
+    
+    with sm_tab2:
+        st.markdown("#### Post to Social Media")
+        
+        # Post Content
+        post_message = st.text_area("Message", height=100, placeholder="Enter your message here...")
+        
+        # Auto-generate message from latest data
+        if st.button("📊 Use Latest Market Data", use_container_width=True):
+            if st.session_state.exchange_data:
+                spy = next((d for n, d in st.session_state.exchange_data.items() if "NYSE" in n or "NASDAQ" in n), None)
+                if spy:
+                    post_message = f"""🤖 AI Trading Alert
+
+Market Update: {spy.index_value:.2f} ({spy.index_change:+.2f}%)
+
+Top Gainers Today:
+{chr(10).join([f"• {s['symbol']}: +{s['change']:.1f}%" for s in list(spy.top_gainers)[:3]])}
+
+AI Prediction: {'BULLISH' if spy.index_change > 0 else 'BEARISH'}
+
+#Stocks #Trading #AI #MarketAnalysis"""
+        
+        # Media Attachment
+        col_media1, col_media2 = st.columns(2)
+        with col_media1:
+            attach_chart = st.checkbox("Attach Chart", value=True)
+        with col_media2:
+            attach_video = st.checkbox("Create Video", value=False)
+        
+        # Platform Selection
+        st.markdown("**Post to:**")
+        col_p1, col_p2, col_p3, col_p4, col_p5 = st.columns(5)
+        with col_p1:
+            post_twitter = st.checkbox("Twitter/X", value=True)
+        with col_p2:
+            post_facebook = st.checkbox("Facebook", value=False)
+        with col_p3:
+            post_instagram = st.checkbox("Instagram", value=False)
+        with col_p4:
+            post_youtube = st.checkbox("YouTube", value=False)
+        with col_p5:
+            post_tiktok = st.checkbox("TikTok", value=False)
+        
+        # Auto-Stream Toggle
+        auto_stream = st.toggle("🔁 Auto-Stream Every 15 Minutes", value=False)
+        if auto_stream:
+            st.info("Auto-stream will post market updates automatically")
+        
+        # Post Button
+        if st.button("📢 POST TO SELECTED PLATFORMS", type="primary", use_container_width=True):
+            if post_message:
+                with st.spinner("Posting to social media..."):
+                    # Generate chart if needed
+                    chart_path = None
+                    if attach_chart and st.session_state.exchange_data:
+                        import matplotlib.pyplot as plt
+                        fig, ax = plt.subplots(figsize=(10, 6))
+                        spy = next((d for n, d in st.session_state.exchange_data.items() if "NYSE" in n), None)
+                        if spy:
+                            ax.text(0.5, 0.5, f"Market Update\n{spy.index_value:.2f}\n{spy.index_change:+.2f}%",
+                                   transform=ax.transAxes, ha='center', va='center', fontsize=20, color='white')
+                            ax.set_facecolor('#111111')
+                            chart_path = tempfile.mktemp(suffix=".png")
+                            plt.savefig(chart_path, facecolor='#111111')
+                            plt.close()
+                    
+                    # Create simple video if requested
+                    video_path = None
+                    if attach_video and chart_path:
+                        try:
+                            from moviepy.editor import ImageClip, TextClip, CompositeVideoClip
+                            img_clip = ImageClip(chart_path).set_duration(15).resize((1080, 1920))
+                            txt_clip = TextClip("Market Update", fontsize=60, color='white').set_position('center').set_duration(15)
+                            video = CompositeVideoClip([img_clip, txt_clip])
+                            video_path = tempfile.mktemp(suffix=".mp4")
+                            video.write_videofile(video_path, fps=24, verbose=False, logger=None)
+                        except:
+                            pass
+                    
+                    # Post to selected platforms
+                    results = {}
+                    
+                    if post_twitter:
+                        success, msg = st.session_state.social_manager.post_to_twitter(
+                            post_message, chart_path, video_path
+                        )
+                        results['Twitter'] = {'success': success, 'message': msg}
+                    
+                    if post_facebook:
+                        success, msg = st.session_state.social_manager.post_to_facebook(
+                            post_message, video_path, chart_path
+                        )
+                        results['Facebook'] = {'success': success, 'message': msg}
+                    
+                    if post_instagram and (chart_path or video_path):
+                        success, msg = st.session_state.social_manager.post_to_instagram(
+                            post_message, chart_path, video_path
+                        )
+                        results['Instagram'] = {'success': success, 'message': msg}
+                    
+                    if post_youtube and video_path:
+                        success, msg = st.session_state.social_manager.post_to_youtube(
+                            video_path,
+                            f"Market Update - {datetime.now().strftime('%Y-%m-%d')}",
+                            post_message,
+                            ['stocks', 'trading', 'ai', 'market'],
+                            is_shorts=True
+                        )
+                        results['YouTube'] = {'success': success, 'message': msg}
+                    
+                    if post_tiktok and video_path:
+                        success, msg = st.session_state.social_manager.post_to_tiktok(
+                            video_path,
+                            "Market Update",
+                            "#stocks #trading #ai"
+                        )
+                        results['TikTok'] = {'success': success, 'message': msg}
+                    
+                    # Display results
+                    for platform, result in results.items():
+                        if result['success']:
+                            st.success(f"✅ {platform}: {result['message']}")
+                        else:
+                            st.error(f"❌ {platform}: {result['message']}")
+                    
+                    st.balloons()
+            else:
+                st.warning("Please enter a message to post")
+        
+        # Auto-stream setup
+        if auto_stream:
+            if st.button("Start Auto-Stream", use_container_width=True):
+                success, msg = st.session_state.social_manager.start_auto_stream(interval_minutes=15)
+                if success:
+                    st.success(msg)
+                else:
+                    st.error(msg)
+    
+    with sm_tab3:
+        st.markdown("#### Post History")
+        
+        history = st.session_state.social_manager.get_post_history()
+        if history:
+            for post in history[-10:]:
+                with st.container():
+                    st.markdown(f"""
+                    <div style="background: rgba(26,26,46,0.5); padding: 10px; border-radius: 10px; margin: 5px 0;">
+                        <strong>{post['platform'].upper()}</strong> - {post['timestamp'].strftime('%Y-%m-%d %H:%M')}<br>
+                        <small>{post['content']}</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+        else:
+            st.info("No posts yet")
+        
+        if st.button("Clear History", use_container_width=True):
+            st.session_state.social_manager.post_history = []
+            st.success("History cleared")
+
 # ==================== AUTO-STREAM LOOP ====================
 if st.session_state.auto_stream:
     time.sleep(30)
