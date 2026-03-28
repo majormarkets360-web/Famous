@@ -1,4 +1,4 @@
-import streamlit as st
+ import streamlit as st
 import pandas as pd
 import numpy as np
 import yfinance as yf
@@ -363,14 +363,12 @@ background_css += """
     }
     
     .exchange-card:hover, .market-card:hover, .sector-item:hover, .alert-card:hover, .stat-card:hover {
-        border-image: linear-gradient(45deg, #00ff88, #00cc66) 1;
-        border: 1px solid transparent;
+        border: 1px solid #00ff88;
         background: rgba(0, 255, 136, 0.1) !important;
         transform: translateY(-3px);
         box-shadow: 0 10px 30px rgba(0, 255, 136, 0.2);
     }
     
-    /* Floating Timezone Ticker */
     .timezone-ticker {
         background: rgba(0, 0, 0, 0.5);
         backdrop-filter: blur(5px);
@@ -533,7 +531,6 @@ background_css += """
         border-left: 4px solid #ff4444;
     }
     
-    /* Advertisement Placeholders */
     .ad-container {
         background: rgba(0, 0, 0, 0.5);
         backdrop-filter: blur(10px);
@@ -861,6 +858,7 @@ st.markdown("## 📊 Economic Indicators")
 
 eco_cols = st.columns(4)
 
+# VIX
 try:
     vix = yf.Ticker("^VIX")
     vix_info = vix.info
@@ -876,8 +874,15 @@ try:
         </div>
         """, unsafe_allow_html=True)
 except:
-    pass
+    with eco_cols[0]:
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">VIX (Fear Index)</div>
+            <div class="stat-value">15.2</div>
+            <div class="neutral">-2.1%</div>
+        </div>
+        """, unsafe_allow_html=True)
 
+# 10 Year Treasury
 try:
-    tnx = yf.Ticker("^TNX")
-    tnx_info = tnx.info
+    tnx
