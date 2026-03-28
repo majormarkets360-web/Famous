@@ -356,7 +356,7 @@ if BACKGROUND_IMAGE:
     }}
     """
 
-# Add the rest of the CSS with new timezone style and ads
+# Add the rest of the CSS
 background_css += """
     /* Glass morphism effect for all cards */
     .exchange-card, .market-card, .sector-item, .alert-card, .stat-card {
@@ -376,12 +376,12 @@ background_css += """
         box-shadow: 0 10px 30px rgba(0, 255, 136, 0.2);
     }
     
-    /* NEW: Sleek Timezone Display */
+    /* Timezone Container */
     .timezone-container {
         background: rgba(0, 0, 0, 0.3);
         border-radius: 20px;
         padding: 15px 20px;
-        margin-bottom: 25px;
+        margin-bottom: 15px;
         border: 1px solid rgba(0, 255, 136, 0.2);
     }
     
@@ -437,6 +437,45 @@ background_css += """
         margin-top: 5px;
     }
     
+    /* Floating Timezone Ticker */
+    .timezone-ticker {
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(5px);
+        border: 1px solid rgba(0, 255, 136, 0.3);
+        border-radius: 30px;
+        padding: 8px 15px;
+        overflow: hidden;
+        white-space: nowrap;
+        margin: 10px 0 20px 0;
+    }
+    
+    .timezone-ticker-content {
+        display: inline-block;
+        animation: ticker 50s linear infinite;
+        white-space: nowrap;
+    }
+    
+    @keyframes ticker {
+        0% { transform: translateX(100%); }
+        100% { transform: translateX(-100%); }
+    }
+    
+    .ticker-timezone-item {
+        display: inline-block;
+        margin: 0 20px;
+        font-size: 14px;
+    }
+    
+    .ticker-city {
+        font-weight: 600;
+        color: #00ff88;
+    }
+    
+    .ticker-time {
+        color: white;
+        font-family: monospace;
+    }
+    
     /* Live ticker styling */
     .ticker-bar {
         background: rgba(0, 0, 0, 0.5);
@@ -453,11 +492,6 @@ background_css += """
         display: inline-block;
         animation: ticker 40s linear infinite;
         white-space: nowrap;
-    }
-    
-    @keyframes ticker {
-        0% { transform: translateX(100%); }
-        100% { transform: translateX(-100%); }
     }
     
     /* Button styling */
@@ -639,7 +673,7 @@ background_css += """
     
     .ad-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 15px;
         margin-top: 15px;
     }
@@ -663,10 +697,39 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ==================== NEW SLEEK TIMEZONE DISPLAY ====================
+# ==================== FLOATING TIMEZONE TICKER ====================
+# Create timezone ticker content
+timezone_ticker_parts = []
+for name, config in EXCHANGES.items():
+    current_time = get_exchange_time(config['timezone'])
+    try:
+        import pytz
+        tz = pytz.timezone(config['timezone'])
+        local_time = datetime.now(tz)
+        hour = local_time.hour
+        is_open = 9 <= hour <= 16
+        status_icon = "🟢" if is_open else "🔴"
+    except:
+        status_icon = "⚪"
+    
+    # Extract city name
+    city_name = config['city']
+    timezone_ticker_parts.append(f"<span class='ticker-timezone-item'><span class='ticker-city'>{city_name}</span> <span class='ticker-time'>{current_time}</span> {status_icon}</span>")
+
+timezone_ticker_html = " • ".join(timezone_ticker_parts)
+
+st.markdown(f"""
+<div class="timezone-ticker">
+    <div class="timezone-ticker-content">
+        🌍 GLOBAL MARKET HOURS • {timezone_ticker_html} • 
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# ==================== SLEEK TIMEZONE GRID ====================
 st.markdown("""
 <div class="timezone-container">
-    <div class="timezone-title">🌍 GLOBAL MARKET HOURS</div>
+    <div class="timezone-title">📊 MARKET HOURS BY REGION</div>
     <div class="timezone-grid">
 """, unsafe_allow_html=True)
 
@@ -685,12 +748,7 @@ for name, config in EXCHANGES.items():
         status = "⚪ UNKNOWN"
         status_color = "#888"
     
-    # Extract city name (remove emoji)
-    city_name = name.split()[-1] if len(name.split()) > 1 else name
-    if "NYSE" in name:
-        city_name = "New York"
-    elif "NASDAQ" in name:
-        city_name = "Nasdaq"
+    city_name = config['city']
     
     st.markdown(f"""
     <div class="timezone-item">
@@ -711,7 +769,6 @@ def create_ticker_text():
     for name, data in st.session_state.exchange_data.items():
         arrow = "▲" if data.index_change >= 0 else "▼"
         color = "#00ff88" if data.index_change >= 0 else "#ff4444"
-        # Clean exchange name for ticker
         display_name = name.split()[0] if " " in name else name
         ticker_parts.append(f"{display_name}: {data.index_value:.0f} <span style='color:{color}'>{arrow} {abs(data.index_change):.1f}%</span>")
     
@@ -773,11 +830,11 @@ with c3:
 with c4:
     st.markdown(f"<div style='text-align: center; padding: 8px; background: rgba(26, 26, 46, 0.7); border-radius: 30px;'><small>Updated: {st.session_state.last_update.strftime('%H:%M:%S')}</small></div>", unsafe_allow_html=True)
 
-# ==================== MAIN CONTENT WITH RIGHT SIDE AD ====================
+# ==================== MAIN CONTENT WITH RIGHT SIDE ADS ====================
 main_left, main_right = st.columns([2.5, 1])
 
 with main_right:
-    # Right side advertisement placeholder
+    # Right side advertisement placeholders (5 total)
     st.markdown("""
     <div class="right-ad">
         <div class="ad-container">
@@ -787,6 +844,42 @@ with main_right:
                 Reach thousands of traders daily
             </div>
             <div class="ad-button">Advertise →</div>
+        </div>
+        
+        <div class="ad-container">
+            <div class="ad-title">📊 PREMIUM FEATURE</div>
+            <div class="ad-content">
+                <strong>AI Pro Analytics</strong><br>
+                Get advanced trading signals
+            </div>
+            <div class="ad-button">Learn More →</div>
+        </div>
+        
+        <div class="ad-container">
+            <div class="ad-title">📚 FREE TRAINING</div>
+            <div class="ad-content">
+                <strong>Master the Markets</strong><br>
+                Join our free webinar
+            </div>
+            <div class="ad-button">Register →</div>
+        </div>
+        
+        <div class="ad-container">
+            <div class="ad-title">🤝 PARTNER OFFER</div>
+            <div class="ad-content">
+                <strong>Exclusive Broker Deal</strong><br>
+                Zero commission trading
+            </div>
+            <div class="ad-button">Claim Offer →</div>
+        </div>
+        
+        <div class="ad-container">
+            <div class="ad-title">📱 MOBILE APP</div>
+            <div class="ad-content">
+                <strong>Trading on the Go</strong><br>
+                Download our app today
+            </div>
+            <div class="ad-button">Get App →</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -831,69 +924,4 @@ with main_left:
     
     market_cols = st.columns(2)
     for idx, (name, data) in enumerate(st.session_state.exchange_data.items()):
-        with market_cols[idx % 2]:
-            change_class = "positive" if data.index_change >= 0 else "negative"
-            # Clean display name
-            display_name = name
-            st.markdown(f"""
-            <div class="exchange-card">
-                <div class="market-name">{display_name}</div>
-                <div class="market-value">{data.index_value:.2f}</div>
-                <div class="market-change {change_class}">{data.index_change:+.2f}%</div>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    # Sector Performance
-    st.markdown("## 📈 Sector Performance")
-    
-    sector_cols = st.columns(4)
-    for idx, (name, data) in enumerate(st.session_state.sector_data.items()):
-        with sector_cols[idx % 4]:
-            color = "#00ff88" if data.performance > 0 else "#ff4444"
-            icon = SECTORS[name]["icon"]
-            st.markdown(f"""
-            <div class="sector-item">
-                <div class="sector-icon">{icon}</div>
-                <div class="sector-name">{name}</div>
-                <div class="sector-perf" style="color: {color};">{data.performance:+.1f}%</div>
-                <div style="font-size: 11px; color: #888;">{data.signal}</div>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    # Alerts and AI Picks (horizontal layout)
-    alert_col, ai_col = st.columns(2)
-    
-    with alert_col:
-        st.markdown("## 🚨 Hot Alerts")
-        if st.session_state.global_alerts:
-            for alert in st.session_state.global_alerts[-3:]:
-                alert_class = "alert-buy" if "BUY" in alert.alert_type else "alert-sell"
-                st.markdown(f"""
-                <div class="alert-card {alert_class}">
-                    <div style="display: flex; justify-content: space-between;">
-                        <strong>{alert.alert_type}</strong>
-                        <small>{alert.timestamp.strftime('%H:%M')}</small>
-                    </div>
-                    <div style="font-size: 18px; font-weight: 600;">{alert.symbol}</div>
-                    <div>${alert.price:.2f} ({alert.change:+.1f}%)</div>
-                    <small>{alert.exchange}</small>
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.info("No active alerts")
-    
-    with ai_col:
-        st.markdown("## 🤖 AI Picks")
-        for symbol, pred in list(st.session_state.ai_predictions.items())[:3]:
-            if pred:
-                signal_color = "#00ff88" if pred.signal == "BUY" else "#ff4444" if pred.signal == "SELL" else "#ffaa00"
-                st.markdown(f"""
-                <div class="market-card">
-                    <div class="market-name">{symbol}</div>
-                    <div class="market-value">${pred.current_price:.2f}</div>
-                    <div style="color: {signal_color};">{pred.signal} ({pred.confidence}%)</div>
-                    <small>Target: ${pred.target:.2f}</small>
-                </div>
-                """, unsafe_allow_html=True)
-
-#
+        with market_cols[idx % 2
