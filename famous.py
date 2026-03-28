@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 import matplotlib.pyplot as plt
 import base64
+import random
 
 warnings.filterwarnings('ignore')
 
@@ -108,7 +109,7 @@ st.set_page_config(page_title="AI Trading Dashboard", page_icon="📈", layout="
 
 # ==================== INITIALIZE SESSION STATE ====================
 if 'watchlist' not in st.session_state:
-    st.session_state.watchlist = ['AAPL', 'TSLA', 'NVDA', 'GOOGL', 'MSFT']
+    st.session_state.watchlist = ['AAPL', 'TSLA', 'NVDA', 'GOOGL', 'MSFT', 'AMZN', 'META']
 if 'exchange_data' not in st.session_state:
     st.session_state.exchange_data = {}
 if 'sector_data' not in st.session_state:
@@ -125,6 +126,8 @@ if 'auto_stream' not in st.session_state:
     st.session_state.auto_stream = False
 if 'broadcast_active' not in st.session_state:
     st.session_state.broadcast_active = False
+if 'ticker_index' not in st.session_state:
+    st.session_state.ticker_index = 0
 
 # ==================== HELPER FUNCTIONS ====================
 
@@ -247,6 +250,61 @@ def update_all_data():
         st.session_state.last_update = datetime.now()
     return True
 
+def create_stock_chart(symbol, period="1mo"):
+    """Create an interactive candlestick chart for a stock"""
+    try:
+        stock = yf.Ticker(symbol)
+        hist = stock.history(period=period)
+        
+        if hist.empty:
+            return None
+        
+        fig = go.Figure()
+        
+        fig.add_trace(go.Candlestick(
+            x=hist.index,
+            open=hist['Open'],
+            high=hist['High'],
+            low=hist['Low'],
+            close=hist['Close'],
+            name='Price',
+            increasing_line_color='#00ff88',
+            decreasing_line_color='#ff4444'
+        ))
+        
+        # Add volume bars
+        fig.add_trace(go.Bar(
+            x=hist.index,
+            y=hist['Volume'],
+            name='Volume',
+            marker_color='rgba(0, 255, 136, 0.3)',
+            yaxis='y2'
+        ))
+        
+        # Add moving averages
+        if len(hist) > 20:
+            ma20 = hist['Close'].rolling(20).mean()
+            fig.add_trace(go.Scatter(x=hist.index, y=ma20, name='MA20', line=dict(color='#ffaa00', width=1)))
+        
+        if len(hist) > 50:
+            ma50 = hist['Close'].rolling(50).mean()
+            fig.add_trace(go.Scatter(x=hist.index, y=ma50, name='MA50', line=dict(color='#ff3366', width=1)))
+        
+        fig.update_layout(
+            title=f"{symbol} - Price Chart",
+            template='plotly_dark',
+            height=400,
+            yaxis_title='Price ($)',
+            yaxis2=dict(title='Volume', overlaying='y', side='right'),
+            hovermode='x unified',
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)'
+        )
+        
+        return fig
+    except:
+        return None
+
 # ==================== CSS STYLING ====================
 background_css = f"""
 <style>
@@ -271,7 +329,7 @@ if BACKGROUND_IMAGE:
     """
 
 background_css += """
-    .exchange-card, .market-card, .sector-item, .alert-card, .stat-card, .investment-card {
+    .exchange-card, .market-card, .sector-item, .alert-card, .stat-card, .investment-card, .chart-container {
         background: rgba(26, 26, 46, 0.7) !important;
         backdrop-filter: blur(10px);
         border: 1px solid rgba(0, 255, 136, 0.2);
@@ -287,6 +345,42 @@ background_css += """
         transform: translateY(-3px);
         box-shadow: 0 10px 30px rgba(0, 255, 136, 0.2);
     }
+    
+    /* Rotating Stock Index Ticker */
+    .stock-index-ticker {
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(0, 255, 136, 0.3);
+        border-radius: 16px;
+        padding: 15px;
+        margin: 10px 0;
+        overflow: hidden;
+    }
+    
+    .stock-index-content {
+        animation: fadeInOut 8s ease-in-out infinite;
+    }
+    
+    @keyframes fadeInOut {
+        0% { opacity: 0; transform: translateY(10px); }
+        10% { opacity: 1; transform: translateY(0); }
+        30% { opacity: 1; transform: translateY(0); }
+        40% { opacity: 0; transform: translateY(-10px); }
+        100% { opacity: 0; transform: translateY(-10px); }
+    }
+    
+    .stock-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+    }
+    
+    .stock-symbol { font-weight: 600; color: #00ff88; }
+    .stock-price { color: white; }
+    .stock-change-positive { color: #00ff88; }
+    .stock-change-negative { color: #ff4444; }
     
     .timezone-ticker {
         background: rgba(0, 0, 0, 0.5);
@@ -399,7 +493,7 @@ background_css += """
         backdrop-filter: blur(10px);
         border: 1px solid rgba(0, 255, 136, 0.3);
         border-radius: 16px;
-        padding: 20px 15px;
+        padding: 15px;
         text-align: center;
         margin: 12px 0;
         transition: all 0.3s ease;
@@ -410,25 +504,24 @@ background_css += """
         border-color: #00ff88;
         background: rgba(0, 255, 136, 0.1);
         transform: translateY(-3px);
-        box-shadow: 0 8px 25px rgba(0, 255, 136, 0.2);
     }
     
-    .ad-icon { font-size: 32px; margin-bottom: 10px; }
-    .ad-title { color: #00ff88; font-size: 14px; font-weight: 700; text-transform: uppercase; margin-bottom: 8px; }
-    .ad-content { color: #fff; font-size: 14px; margin-bottom: 12px; }
+    .ad-icon { font-size: 28px; margin-bottom: 8px; }
+    .ad-title { color: #00ff88; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+    .ad-content { color: #fff; font-size: 12px; margin: 8px 0; }
     .ad-button {
         background: linear-gradient(135deg, #00ff88, #00cc66);
         color: #000;
-        padding: 6px 18px;
+        padding: 4px 12px;
         border-radius: 20px;
-        font-size: 12px;
+        font-size: 10px;
         font-weight: 600;
         display: inline-block;
-        transition: all 0.3s;
     }
     
     .right-ad { position: sticky; top: 20px; }
-    .investment-title { font-size: 20px; font-weight: 700; color: #00ff88; margin-bottom: 20px; text-align: center; }
+    .investment-title { font-size: 18px; font-weight: 700; color: #00ff88; margin-bottom: 15px; text-align: center; }
+    .chart-title { font-size: 18px; font-weight: 600; color: #00ff88; margin-bottom: 15px; }
 </style>
 """
 
@@ -519,17 +612,57 @@ with c4:
 main_left, main_right = st.columns([2.5, 1])
 
 with main_right:
+    # Rotating Stock Index Ticker (replaces one ad slot)
+    st.markdown("""
+    <div class="stock-index-ticker">
+        <div style="text-align: center; margin-bottom: 10px;">
+            <span style="color: #00ff88; font-weight: 600;">📊 MARKET INDEX</span>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Create rotating stock data
+    all_stocks = []
+    for name, data in st.session_state.exchange_data.items():
+        for stock in data.top_gainers[:2] + data.top_losers[:2]:
+            all_stocks.append(stock)
+    
+    if all_stocks:
+        # Rotate through stocks
+        st.session_state.ticker_index = (st.session_state.ticker_index + 1) % len(all_stocks)
+        current_stock = all_stocks[st.session_state.ticker_index]
+        
+        change_class = "stock-change-positive" if current_stock['change'] >= 0 else "stock-change-negative"
+        change_symbol = "+" if current_stock['change'] >= 0 else ""
+        
+        st.markdown(f"""
+        <div class="stock-index-content">
+            <div class="stock-item">
+                <span class="stock-symbol">{current_stock['symbol']}</span>
+                <span class="stock-price">${current_stock['price']:.2f}</span>
+                <span class="{change_class}">{change_symbol}{current_stock['change']:.1f}%</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Add small indicator that it's rotating
+        st.markdown('<div style="text-align: center; font-size: 10px; color: #888; margin-top: 8px;">⟳ Rotating through top movers</div>', unsafe_allow_html=True)
+    else:
+        st.info("Loading market data...")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Advertisement placeholders (4 remaining slots)
     st.markdown("""
     <div class="right-ad">
-        <div class="ad-container"><div class="ad-icon">📢</div><div class="ad-title">SPONSORED</div><div class="ad-content"><strong>Your Ad Here</strong><br>Reach thousands of traders daily</div><div class="ad-button">Advertise →</div></div>
-        <div class="ad-container"><div class="ad-icon">📊</div><div class="ad-title">PREMIUM FEATURE</div><div class="ad-content"><strong>AI Pro Analytics</strong><br>Get advanced trading signals</div><div class="ad-button">Learn More →</div></div>
-        <div class="ad-container"><div class="ad-icon">📚</div><div class="ad-title">FREE TRAINING</div><div class="ad-content"><strong>Master the Markets</strong><br>Join our free webinar</div><div class="ad-button">Register →</div></div>
-        <div class="ad-container"><div class="ad-icon">🤝</div><div class="ad-title">PARTNER OFFER</div><div class="ad-content"><strong>Exclusive Broker Deal</strong><br>Zero commission trading</div><div class="ad-button">Claim Offer →</div></div>
-        <div class="ad-container"><div class="ad-icon">📱</div><div class="ad-title">MOBILE APP</div><div class="ad-content"><strong>Trading on the Go</strong><br>Download our app today</div><div class="ad-button">Get App →</div></div>
+        <div class="ad-container"><div class="ad-icon">📢</div><div class="ad-title">SPONSORED</div><div class="ad-content"><strong>Your Ad Here</strong><br>Reach traders daily</div><div class="ad-button">Advertise →</div></div>
+        <div class="ad-container"><div class="ad-icon">📊</div><div class="ad-title">PREMIUM</div><div class="ad-content"><strong>AI Pro Analytics</strong><br>Advanced signals</div><div class="ad-button">Learn More →</div></div>
+        <div class="ad-container"><div class="ad-icon">📚</div><div class="ad-title">FREE TRAINING</div><div class="ad-content"><strong>Master Markets</strong><br>Free webinar</div><div class="ad-button">Register →</div></div>
+        <div class="ad-container"><div class="ad-icon">🤝</div><div class="ad-title">PARTNER OFFER</div><div class="ad-content"><strong>Zero Commission</strong><br>Exclusive deal</div><div class="ad-button">Claim →</div></div>
     </div>
     """, unsafe_allow_html=True)
 
 with main_left:
+    # Stats Row
     stat_cols = st.columns(4)
     with stat_cols[0]:
         st.markdown(f"<div class='stat-card'><div class='stat-value'>{len(st.session_state.exchange_data)}</div><div class='stat-label'>Global Exchanges</div></div>", unsafe_allow_html=True)
@@ -543,6 +676,7 @@ with main_left:
         avg_conf = np.mean([p.confidence for p in st.session_state.ai_predictions.values() if p]) if st.session_state.ai_predictions else 0
         st.markdown(f"<div class='stat-card'><div class='stat-value'>{avg_conf:.0f}%</div><div class='stat-label'>AI Confidence</div></div>", unsafe_allow_html=True)
     
+    # Market Overview
     st.markdown("## 📊 Market Overview")
     market_cols = st.columns(2)
     for idx, (name, data) in enumerate(st.session_state.exchange_data.items()):
@@ -550,6 +684,23 @@ with main_left:
             change_class = "positive" if data.index_change >= 0 else "negative"
             st.markdown(f"<div class='exchange-card'><div class='market-name'>{name}</div><div class='market-value'>{data.index_value:.2f}</div><div class='market-change {change_class}'>{data.index_change:+.2f}%</div></div>", unsafe_allow_html=True)
     
+    # Interactive Stock Chart Section
+    st.markdown("## 📈 Live Stock Charts")
+    
+    chart_col1, chart_col2 = st.columns([1, 3])
+    with chart_col1:
+        chart_symbol = st.selectbox("Select Stock", st.session_state.watchlist, key="chart_select")
+        chart_period = st.selectbox("Time Period", ["1d", "5d", "1mo", "3mo", "6mo", "1y"], index=2)
+    
+    with chart_col2:
+        if chart_symbol:
+            fig = create_stock_chart(chart_symbol, chart_period)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True, key="stock_chart")
+            else:
+                st.info("Chart data not available")
+    
+    # Sector Performance
     st.markdown("## 📈 Sector Performance")
     sector_cols = st.columns(4)
     for idx, (name, data) in enumerate(st.session_state.sector_data.items()):
@@ -684,12 +835,18 @@ if st.session_state.auto_stream:
 if not st.session_state.exchange_data:
     update_all_data()
 
+# ==================== AUTO-ROTATE TICKER ====================
+# This will auto-rotate the stock index every 5 seconds
+if st.session_state.auto_stream:
+    time.sleep(5)
+    st.rerun()
+
 # ==================== FOOTER ====================
 st.divider()
 st.markdown("""
 <div style="text-align: center; color: #888; padding: 20px;">
     AI Trading Dashboard - Real-time Market Intelligence<br>
-    Data across 8 global exchanges | AI-powered predictions | Auto-broadcast to all platforms<br>
+    Data across 8 global exchanges | AI-powered predictions | Interactive Charts | Auto-broadcast<br>
     <small>⚠️ Not financial advice. Always do your own research.</small>
 </div>
 """, unsafe_allow_html=True)
