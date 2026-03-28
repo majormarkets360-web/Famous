@@ -885,4 +885,129 @@ except:
 
 # 10 Year Treasury
 try:
-    tnx = y
+    tnx = yf.Ticker("^TNX")
+    tnx_info = tnx.info
+    tnx_price = tnx_info.get('regularMarketPrice', 4.2)
+    
+    with eco_cols[1]:
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">10-Yr Treasury</div>
+            <div class="stat-value">{tnx_price:.2f}%</div>
+        </div>
+        """, unsafe_allow_html=True)
+except:
+    with eco_cols[1]:
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">10-Yr Treasury</div>
+            <div class="stat-value">4.25%</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+# Gold
+try:
+    gold = yf.Ticker("GC=F")
+    gold_info = gold.info
+    gold_price = gold_info.get('regularMarketPrice', 2000)
+    
+    with eco_cols[2]:
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">Gold</div>
+            <div class="stat-value">${gold_price:.0f}</div>
+        </div>
+        """, unsafe_allow_html=True)
+except:
+    with eco_cols[2]:
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">Gold</div>
+            <div class="stat-value">$2,050</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+# Crude Oil
+try:
+    oil = yf.Ticker("CL=F")
+    oil_info = oil.info
+    oil_price = oil_info.get('regularMarketPrice', 75)
+    
+    with eco_cols[3]:
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">Crude Oil</div>
+            <div class="stat-value">${oil_price:.1f}</div>
+        </div>
+        """, unsafe_allow_html=True)
+except:
+    with eco_cols[3]:
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">Crude Oil</div>
+            <div class="stat-value">$72.50</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+# ==================== SIDEBAR ====================
+with st.sidebar:
+    st.markdown("## 🎮 Dashboard Controls")
+    
+    if st.session_state.auto_stream:
+        st.success("🟢 LIVE STREAM: ACTIVE")
+    else:
+        st.warning("⚪ LIVE STREAM: INACTIVE")
+    
+    if st.session_state.broadcast_active:
+        st.success("📢 BROADCAST: ACTIVE")
+    else:
+        st.warning("🔇 BROADCAST: INACTIVE")
+    
+    st.divider()
+    
+    st.markdown("### 📊 Watchlist")
+    watchlist_input = st.text_input("Add symbols", placeholder="AAPL,TSLA,NVDA")
+    if watchlist_input:
+        st.session_state.watchlist = [s.strip() for s in watchlist_input.split(',')]
+        for symbol in st.session_state.watchlist:
+            if symbol not in st.session_state.ai_predictions:
+                st.session_state.ai_predictions[symbol] = calculate_ai_prediction(symbol)
+        st.rerun()
+    
+    for sym in st.session_state.watchlist[:5]:
+        pred = st.session_state.ai_predictions.get(sym)
+        if pred:
+            color = "#00ff88" if pred.signal == "BUY" else "#ff4444" if pred.signal == "SELL" else "#ffaa00"
+            st.markdown(f"<div style='border-left: 3px solid {color}; padding-left: 10px; margin: 5px 0;'>{sym}: {pred.signal} ({pred.confidence}%)</div>", unsafe_allow_html=True)
+    
+    st.divider()
+    
+    st.markdown("### 📊 Stats")
+    st.metric("Exchanges", len(st.session_state.exchange_data))
+    st.metric("Sectors", len(st.session_state.sector_data))
+    st.metric("Alerts", len(st.session_state.global_alerts))
+    
+    st.divider()
+    
+    st.markdown("### 📡 Live Log")
+    for msg in st.session_state.stream_messages[:3]:
+        st.caption(f"[{msg.get('time', '')}] {msg.get('message', '')}")
+
+# ==================== AUTO-STREAM LOOP ====================
+if st.session_state.auto_stream:
+    time.sleep(30)
+    st.rerun()
+
+# ==================== INITIAL DATA LOAD ====================
+if not st.session_state.exchange_data:
+    update_all_data()
+
+# ==================== FOOTER ====================
+st.divider()
+st.markdown("""
+<div style="text-align: center; color: #888; padding: 20px;">
+    AI Trading Dashboard - Real-time Market Intelligence<br>
+    Data across 8 global exchanges | AI-powered predictions | Auto-broadcast to all platforms<br>
+    <small>⚠️ Not financial advice. Always do your own research.</small>
+</div>
+""", unsafe_allow_html=True)
