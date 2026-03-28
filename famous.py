@@ -180,6 +180,16 @@ class AIPrediction:
     target: float
     stop_loss: float
 
+@dataclass
+class InvestmentPlan:
+    symbol: str
+    investment_amount: float
+    shares: int
+    current_price: float
+    target_price: float
+    potential_return: float
+    recommendation: str
+
 # ==================== PAGE CONFIG ====================
 st.set_page_config(
     page_title="AI Trading Dashboard",
@@ -301,6 +311,21 @@ def calculate_ai_prediction(symbol):
         )
     except:
         return None
+
+def calculate_investment_plan(symbol, amount, prediction):
+    if not prediction:
+        return None
+    shares = int(amount / prediction.current_price) if prediction.current_price > 0 else 0
+    potential_return = ((prediction.target - prediction.current_price) / prediction.current_price * 100)
+    return InvestmentPlan(
+        symbol=symbol,
+        investment_amount=amount,
+        shares=shares,
+        current_price=prediction.current_price,
+        target_price=prediction.target,
+        potential_return=potential_return,
+        recommendation=f"{prediction.signal} with {prediction.confidence}% confidence"
+    )
 
 def update_all_data():
     with st.spinner("Updating market data..."):
@@ -459,6 +484,7 @@ background_css += """
     
     .positive { color: #00ff88; }
     .negative { color: #ff4444; }
+    .neutral { color: #ffaa00; }
     
     .main-header {
         background: linear-gradient(135deg, rgba(10, 10, 42, 0.9), rgba(26, 26, 58, 0.9));
@@ -531,56 +557,84 @@ background_css += """
         border-left: 4px solid #ff4444;
     }
     
+    /* Advertisement Placeholders - Styled as VISUAL CARDS */
     .ad-container {
-        background: rgba(0, 0, 0, 0.5);
+        background: rgba(0, 0, 0, 0.6);
         backdrop-filter: blur(10px);
-        border: 1px dashed rgba(0, 255, 136, 0.4);
-        border-radius: 12px;
-        padding: 15px;
+        border: 1px solid rgba(0, 255, 136, 0.3);
+        border-radius: 16px;
+        padding: 20px 15px;
         text-align: center;
-        margin: 10px 0;
-        transition: all 0.3s;
+        margin: 12px 0;
+        transition: all 0.3s ease;
+        cursor: pointer;
     }
     
     .ad-container:hover {
         border-color: #00ff88;
-        background: rgba(0, 255, 136, 0.05);
+        background: rgba(0, 255, 136, 0.1);
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(0, 255, 136, 0.2);
+    }
+    
+    .ad-icon {
+        font-size: 32px;
+        margin-bottom: 10px;
     }
     
     .ad-title {
         color: #00ff88;
-        font-size: 12px;
+        font-size: 14px;
+        font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 2px;
-        margin-bottom: 10px;
+        letter-spacing: 1px;
+        margin-bottom: 8px;
     }
     
     .ad-content {
-        color: #888;
+        color: #fff;
         font-size: 14px;
+        line-height: 1.4;
+        margin-bottom: 12px;
     }
     
     .ad-button {
         background: linear-gradient(135deg, #00ff88, #00cc66);
         color: #000;
-        padding: 5px 15px;
+        padding: 6px 18px;
         border-radius: 20px;
         font-size: 12px;
         font-weight: 600;
         display: inline-block;
-        margin-top: 10px;
-        cursor: pointer;
         transition: all 0.3s;
     }
     
     .ad-button:hover {
         transform: scale(1.05);
+        box-shadow: 0 3px 10px rgba(0, 255, 136, 0.4);
     }
     
     .right-ad {
         position: sticky;
         top: 20px;
+    }
+    
+    /* Investment Calculator Card */
+    .investment-card {
+        background: rgba(26, 26, 46, 0.8);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(0, 255, 136, 0.3);
+        border-radius: 20px;
+        padding: 20px;
+        margin: 20px 0;
+    }
+    
+    .investment-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: #00ff88;
         margin-bottom: 20px;
+        text-align: center;
     }
 </style>
 """
@@ -700,51 +754,41 @@ with c4:
 main_left, main_right = st.columns([2.5, 1])
 
 with main_right:
-    # 5 Advertisement Placeholders
+    # 5 Advertisement Placeholders - VISUAL CARDS
     st.markdown("""
     <div class="right-ad">
         <div class="ad-container">
-            <div class="ad-title">📢 SPONSORED</div>
-            <div class="ad-content">
-                <strong>Your Ad Here</strong><br>
-                Reach thousands of traders daily
-            </div>
+            <div class="ad-icon">📢</div>
+            <div class="ad-title">SPONSORED</div>
+            <div class="ad-content"><strong>Your Ad Here</strong><br>Reach thousands of traders daily</div>
             <div class="ad-button">Advertise →</div>
         </div>
         
         <div class="ad-container">
-            <div class="ad-title">📊 PREMIUM FEATURE</div>
-            <div class="ad-content">
-                <strong>AI Pro Analytics</strong><br>
-                Get advanced trading signals
-            </div>
+            <div class="ad-icon">📊</div>
+            <div class="ad-title">PREMIUM FEATURE</div>
+            <div class="ad-content"><strong>AI Pro Analytics</strong><br>Get advanced trading signals</div>
             <div class="ad-button">Learn More →</div>
         </div>
         
         <div class="ad-container">
-            <div class="ad-title">📚 FREE TRAINING</div>
-            <div class="ad-content">
-                <strong>Master the Markets</strong><br>
-                Join our free webinar
-            </div>
+            <div class="ad-icon">📚</div>
+            <div class="ad-title">FREE TRAINING</div>
+            <div class="ad-content"><strong>Master the Markets</strong><br>Join our free webinar</div>
             <div class="ad-button">Register →</div>
         </div>
         
         <div class="ad-container">
-            <div class="ad-title">🤝 PARTNER OFFER</div>
-            <div class="ad-content">
-                <strong>Exclusive Broker Deal</strong><br>
-                Zero commission trading
-            </div>
+            <div class="ad-icon">🤝</div>
+            <div class="ad-title">PARTNER OFFER</div>
+            <div class="ad-content"><strong>Exclusive Broker Deal</strong><br>Zero commission trading</div>
             <div class="ad-button">Claim Offer →</div>
         </div>
         
         <div class="ad-container">
-            <div class="ad-title">📱 MOBILE APP</div>
-            <div class="ad-content">
-                <strong>Trading on the Go</strong><br>
-                Download our app today
-            </div>
+            <div class="ad-icon">📱</div>
+            <div class="ad-title">MOBILE APP</div>
+            <div class="ad-content"><strong>Trading on the Go</strong><br>Download our app today</div>
             <div class="ad-button">Get App →</div>
         </div>
     </div>
@@ -833,181 +877,4 @@ with main_left:
                     </div>
                     <div style="font-size: 18px; font-weight: 600;">{alert.symbol}</div>
                     <div>${alert.price:.2f} ({alert.change:+.1f}%)</div>
-                    <small>{alert.exchange}</small>
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.info("No active alerts")
-    
-    with ai_col:
-        st.markdown("## 🤖 AI Picks")
-        for symbol, pred in list(st.session_state.ai_predictions.items())[:3]:
-            if pred:
-                signal_color = "#00ff88" if pred.signal == "BUY" else "#ff4444" if pred.signal == "SELL" else "#ffaa00"
-                st.markdown(f"""
-                <div class="market-card">
-                    <div class="market-name">{symbol}</div>
-                    <div class="market-value">${pred.current_price:.2f}</div>
-                    <div style="color: {signal_color};">{pred.signal} ({pred.confidence}%)</div>
-                    <small>Target: ${pred.target:.2f}</small>
-                </div>
-                """, unsafe_allow_html=True)
-
-# ==================== ECONOMIC INDICATORS ====================
-st.markdown("## 📊 Economic Indicators")
-
-eco_cols = st.columns(4)
-
-# VIX
-try:
-    vix = yf.Ticker("^VIX")
-    vix_info = vix.info
-    vix_price = vix_info.get('regularMarketPrice', 15)
-    vix_change = vix_info.get('regularMarketChangePercent', 0)
-    
-    with eco_cols[0]:
-        st.markdown(f"""
-        <div class="stat-card">
-            <div class="stat-label">VIX (Fear Index)</div>
-            <div class="stat-value">{vix_price:.1f}</div>
-            <div class="{'positive' if vix_change < 0 else 'negative'}">{vix_change:+.1f}%</div>
-        </div>
-        """, unsafe_allow_html=True)
-except:
-    with eco_cols[0]:
-        st.markdown(f"""
-        <div class="stat-card">
-            <div class="stat-label">VIX (Fear Index)</div>
-            <div class="stat-value">15.2</div>
-            <div class="neutral">-2.1%</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-# 10 Year Treasury
-try:
-    tnx = yf.Ticker("^TNX")
-    tnx_info = tnx.info
-    tnx_price = tnx_info.get('regularMarketPrice', 4.2)
-    
-    with eco_cols[1]:
-        st.markdown(f"""
-        <div class="stat-card">
-            <div class="stat-label">10-Yr Treasury</div>
-            <div class="stat-value">{tnx_price:.2f}%</div>
-        </div>
-        """, unsafe_allow_html=True)
-except:
-    with eco_cols[1]:
-        st.markdown(f"""
-        <div class="stat-card">
-            <div class="stat-label">10-Yr Treasury</div>
-            <div class="stat-value">4.25%</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-# Gold
-try:
-    gold = yf.Ticker("GC=F")
-    gold_info = gold.info
-    gold_price = gold_info.get('regularMarketPrice', 2000)
-    
-    with eco_cols[2]:
-        st.markdown(f"""
-        <div class="stat-card">
-            <div class="stat-label">Gold</div>
-            <div class="stat-value">${gold_price:.0f}</div>
-        </div>
-        """, unsafe_allow_html=True)
-except:
-    with eco_cols[2]:
-        st.markdown(f"""
-        <div class="stat-card">
-            <div class="stat-label">Gold</div>
-            <div class="stat-value">$2,050</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-# Crude Oil
-try:
-    oil = yf.Ticker("CL=F")
-    oil_info = oil.info
-    oil_price = oil_info.get('regularMarketPrice', 75)
-    
-    with eco_cols[3]:
-        st.markdown(f"""
-        <div class="stat-card">
-            <div class="stat-label">Crude Oil</div>
-            <div class="stat-value">${oil_price:.1f}</div>
-        </div>
-        """, unsafe_allow_html=True)
-except:
-    with eco_cols[3]:
-        st.markdown(f"""
-        <div class="stat-card">
-            <div class="stat-label">Crude Oil</div>
-            <div class="stat-value">$72.50</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-# ==================== SIDEBAR ====================
-with st.sidebar:
-    st.markdown("## 🎮 Dashboard Controls")
-    
-    if st.session_state.auto_stream:
-        st.success("🟢 LIVE STREAM: ACTIVE")
-    else:
-        st.warning("⚪ LIVE STREAM: INACTIVE")
-    
-    if st.session_state.broadcast_active:
-        st.success("📢 BROADCAST: ACTIVE")
-    else:
-        st.warning("🔇 BROADCAST: INACTIVE")
-    
-    st.divider()
-    
-    st.markdown("### 📊 Watchlist")
-    watchlist_input = st.text_input("Add symbols", placeholder="AAPL,TSLA,NVDA")
-    if watchlist_input:
-        st.session_state.watchlist = [s.strip() for s in watchlist_input.split(',')]
-        for symbol in st.session_state.watchlist:
-            if symbol not in st.session_state.ai_predictions:
-                st.session_state.ai_predictions[symbol] = calculate_ai_prediction(symbol)
-        st.rerun()
-    
-    for sym in st.session_state.watchlist[:5]:
-        pred = st.session_state.ai_predictions.get(sym)
-        if pred:
-            color = "#00ff88" if pred.signal == "BUY" else "#ff4444" if pred.signal == "SELL" else "#ffaa00"
-            st.markdown(f"<div style='border-left: 3px solid {color}; padding-left: 10px; margin: 5px 0;'>{sym}: {pred.signal} ({pred.confidence}%)</div>", unsafe_allow_html=True)
-    
-    st.divider()
-    
-    st.markdown("### 📊 Stats")
-    st.metric("Exchanges", len(st.session_state.exchange_data))
-    st.metric("Sectors", len(st.session_state.sector_data))
-    st.metric("Alerts", len(st.session_state.global_alerts))
-    
-    st.divider()
-    
-    st.markdown("### 📡 Live Log")
-    for msg in st.session_state.stream_messages[:3]:
-        st.caption(f"[{msg.get('time', '')}] {msg.get('message', '')}")
-
-# ==================== AUTO-STREAM LOOP ====================
-if st.session_state.auto_stream:
-    time.sleep(30)
-    st.rerun()
-
-# ==================== INITIAL DATA LOAD ====================
-if not st.session_state.exchange_data:
-    update_all_data()
-
-# ==================== FOOTER ====================
-st.divider()
-st.markdown("""
-<div style="text-align: center; color: #888; padding: 20px;">
-    AI Trading Dashboard - Real-time Market Intelligence<br>
-    Data across 8 global exchanges | AI-powered predictions | Auto-broadcast to all platforms<br>
-    <small>⚠️ Not financial advice. Always do your own research.</small>
-</div>
-""", unsafe_allow_html=True)
+                    <small>{alert.exchange}</
